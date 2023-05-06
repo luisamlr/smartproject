@@ -24,10 +24,15 @@ df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
 
 unique(df_cs$Admin.Area.Level.1) # 12 provinces in Netherlands
 
+
+# Whole sample analysis
+hist(df_cs$Rating, xlab = "Ratings", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Ratings")
+
 df_cs_loc<-df_cs%>%
   group_by(Admin.Area.Level.1)%>%
   summarise(obs = n(), max = max(Rating), mean = mean(Rating) ,min = min(Rating))
 
+df_cs_loc
 
 # plot the data with rotated x-axis labels
 ggplot(df_cs, aes(x = Admin.Area.Level.1, y = Rating)) +
@@ -117,13 +122,13 @@ for (i in 1:nrow(df_all)) {
       distances[j]<- distHaversine(c(df_all$Longitude[i], df_all$Latitude[i]), c(df_all$Longitude[j], df_all$Latitude[j]))
     }
     # count how many distances are less than 1000m
-    count_1000 <- nrow(df_all[distances < 1000,]) - 1 #Subtract 1 because otherwise we count the station itself
+    count_1000 <- nrow(df_all[distances <= 1000,]) - 1 #Subtract 1 because otherwise we count the station itself
     # count how many distances are less than 500m
-    count_500 <- nrow(df_all[distances < 500,])  - 1 #Subtract 1 because otherwise we count the station itself
+    count_500 <- nrow(df_all[distances <= 500,])  - 1 #Subtract 1 because otherwise we count the station itself
     # count how many distances are less than 250m
-    count_250 <- nrow(df_all[distances < 250,])  - 1 #Subtract 1 because otherwise we count the station itself
+    count_250 <- nrow(df_all[distances <= 250,])  - 1 #Subtract 1 because otherwise we count the station itself
     # count how many distances are less than 100m
-    count_100 <- nrow(df_all[distances < 100,])  - 1 #Subtract 1 because otherwise we count the station itself
+    count_100 <- nrow(df_all[distances <= 100,])  - 1 #Subtract 1 because otherwise we count the station itself
     # add count to vector
     counts_1000<- c(counts_1000, count_1000)
     # add count to vector
@@ -138,6 +143,18 @@ for (i in 1:nrow(df_all)) {
 
 # Merging with previous information
 df_cs<-cbind(df_cs, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
+
+
+# Whole sample analysis
+hist(df_cs$n_rating , xlab = "Rating Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Ratings Closest Station")
+hist(df_cs$avg3 , xlab = "Avg. Rating 3 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 3 Closest Station")
+hist(df_cs$avg5 , xlab = "Avg. Rating 5 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 5 Closest Station")
+hist(df_cs$avg10 , xlab = "Avg. Rating 10 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 10 Closest Station")
+
+hist(df_cs$counts_100 , xlab = "Number of Stations Within 100m", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of number of Stations Within 100m")
+hist(df_cs$counts_250 , xlab = "Number of Stations Within 250m", ylab = "Frequency",  breaks = seq(0, max(df_cs$counts_250)), col = "steelblue", main = "Distribution of number of Stations Within 250m")
+hist(df_cs$counts_500 , xlab = "Number of Stations Within 500m", ylab = "Frequency", breaks = seq(0, max(df_cs$counts_500)),  col = "steelblue", main = "Distribution of number of Stations Within 500m")
+hist(df_cs$counts_1000 , xlab = "Number of Stations Within 1000m", ylab = "Frequency",  breaks = seq(0, max(df_cs$counts_1000)), col = "steelblue", main = "Distribution of number of Stations Within 1000m")
 
 ##### Relation 1 closest locations with the star rating of the charging station #####
 ggplot(df_cs, aes(x = Rating, y = n_rating)) +
