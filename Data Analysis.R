@@ -274,5 +274,13 @@ ggplot(df_cs, aes(x = as.factor(round(Rating,0)), y = counts_1000)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
+# Install the openxlsx package if you haven't done so already
+# install.packages("openxlsx")
+
+# Load the openxlsx package
+library(openxlsx)
+
+# Replace "path/to/file" with the file path and name you want to save your Excel file to
+write.xlsx(df_cs, "data_variables_roger.xlsx", rowNames = FALSE)
 
 
