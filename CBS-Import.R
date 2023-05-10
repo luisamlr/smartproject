@@ -47,6 +47,3 @@ data_pre <- data_pre %>%
   summarize_all(mean, na.rm = TRUE)
 
 data_pre$StringValue <- as.numeric(data_pre$StringValue)
-
-# I am just trying to upload something
-
