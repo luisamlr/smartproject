@@ -1,5 +1,6 @@
 library(httr)
 library(jsonlite)
+library(dplyr)
 
 get_nearest_highway <- function(latitude, longitude) {
   overpass_api_url <- "https://overpass-api.de/api/interpreter"
@@ -49,20 +50,29 @@ nearest_highway_distance <- function(latitude, longitude) {
     return(NA)
   }
   min_distance <- Inf
-  
-  for (i in 1:nrow(highways$elements)) {
-    way <- highways$elements[i,]
-    
-    for (j in 1:nrow(way$geometry[[1]])) {
-      lat <- way$geometry[[1]]$lat[j]
-      lon <- way$geometry[[1]]$lon[j]
-      dist <- distance(latitude, longitude, lat, lon)
-      b <- c(b, dist)
-      min_distance <- min(min_distance, dist)
+  if (is.null(nrow(highways$elements))) {
+    return(1001)
+  } else{
+    for (i in 1:nrow(highways$elements)) {
+      way <- highways$elements[i,]
+      
+      for (j in 1:nrow(way$geometry[[1]])) {
+        lat <- way$geometry[[1]]$lat[j]
+        lon <- way$geometry[[1]]$lon[j]
+        dist <- distance(latitude, longitude, lat, lon)
+        b <- c(b, dist)
+        min_distance <- min(min_distance, dist)
+      }
     }
   }
   
   return(min_distance)
 }
 
-out <- nearest_highway_distance(50.845298, 5.691046)
+highway_dist <- reshaped_poi_locations[,1:2]
+
+highway_dist <- highway_dist %>%
+  rowwise() %>%
+  mutate(highway_dist = nearest_highway_distance(charger_latitude, charger_longitude))
+highway_dist$highway <- ifelse(highway_dist$highway_dist <=1000, 1, 0)
+write.csv(highway_dist, "highway_dist.csv")
