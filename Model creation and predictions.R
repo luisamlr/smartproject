@@ -16,13 +16,19 @@ poi_locations <- read_excel("facilities_around_coordinates.xlsx")
 demog_data <- read_excel("CBS.xlsx")
 parking_maastricht <- read_excel("parking_spots_maastricht.xlsx")
 
+# Eliminate duplicates
+ev_chargers_reviews <- distinct(ev_chargers_reviews)
+poi_locations <- distinct(poi_locations)
+demog_data <- distinct(demog_data)
+parking_maastricht <- distinct(parking_maastricht)
+
 # Format corrections for necessary variables.
 poi_locations$latitude <- round(as.numeric(poi_locations$latitude),7)
 poi_locations$longitude <- round(as.numeric(poi_locations$longitude),7)
 poi_locations$charger_latitude <- round(as.numeric(poi_locations$charger_latitude),7)
 poi_locations$charger_longitude <- round(as.numeric(poi_locations$charger_longitude),7)
-ev_chargers_reviews$latitude <- round(as.numeric(ev_chargers_reviews$latitude),7)
-ev_chargers_reviews$longitude <- round(as.numeric(ev_chargers_reviews$longitude),7)
+ev_chargers_reviews$Latitude <- round(as.numeric(ev_chargers_reviews$Latitude),7)
+ev_chargers_reviews$Longitude <- round(as.numeric(ev_chargers_reviews$Longitude),7)
 parking_maastricht$latitude <- round(as.numeric(parking_maastricht$latitude),7)
 parking_maastricht$longitude <- round(as.numeric(parking_maastricht$longitude),7)
 demog_data$StringValue <- as.character(demog_data$StringValue)
@@ -48,8 +54,8 @@ poi_locations$distance <- mapply(haversine_distance, poi_locations$charger_latit
 poi_locations$distance <- as.numeric(poi_locations$distance)
 
 # Ensure that the key columns in both data frames have the same names
-names(ev_chargers_reviews)[names(ev_chargers_reviews) == "longitude"] <- "charger_longitude"
-names(ev_chargers_reviews)[names(ev_chargers_reviews) == "latitude"] <- "charger_latitude"
+names(ev_chargers_reviews)[names(ev_chargers_reviews) == "Longitude"] <- "charger_longitude"
+names(ev_chargers_reviews)[names(ev_chargers_reviews) == "Latitude"] <- "charger_latitude"
 
 names(demog_data)[names(demog_data) == "Longitude"] <- "charger_longitude"
 names(demog_data)[names(demog_data) == "Latitude"] <- "charger_latitude"
@@ -62,18 +68,18 @@ reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(ev_chargers_reviews, by = c("charger_longitude" = "charger_longitude", "charger_latitude" = "charger_latitude"))
 
 # Trimed postal code for cbs merge
-reshaped_poi_locations$postal_trim <- substr(reshaped_poi_locations$`Postal Code`, start = 1, stop = 4)
+reshaped_poi_locations$postal_trim <- substr(reshaped_poi_locations$`Postal.Code`, start = 1, stop = 4)
 
 # Left join the demog_data
 reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(demog_data, by = c("postal_trim"="StringValue"))
 
+# Clean one column that is completely null
 reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locations) == "WijkenEnBuurten")]
 
 # Checking and fixing variable names
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
-#write_xlsx(reshaped_poi_locations, "reshaped_poi_locations.xlsx")
 
 ## Random Forest Model ##
 
