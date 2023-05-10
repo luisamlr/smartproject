@@ -9,18 +9,22 @@ library(writexl)
 library(ranger)
 library(caret)
 library(e1071)
+library(tidyr)
 
 # Loading chargers information.
 ev_chargers_reviews <- read.csv("All_Chargers.csv")
 poi_locations <- read_excel("facilities_around_coordinates.xlsx")
 demog_data <- read_excel("CBS.xlsx")
 parking_maastricht <- read_excel("parking_spots_maastricht.xlsx")
+aggregate_rating <- read_excel("data_variables_roger.xlsx")
+aggregate_rating <- select(aggregate_rating, Latitude, Longitude, n_rating, avg3, avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
 
 # Eliminate duplicates
 ev_chargers_reviews <- distinct(ev_chargers_reviews)
 poi_locations <- distinct(poi_locations)
 demog_data <- distinct(demog_data)
 parking_maastricht <- distinct(parking_maastricht)
+aggregate_rating <- distinct(aggregate_rating)
 
 # Format corrections for necessary variables.
 poi_locations$latitude <- round(as.numeric(poi_locations$latitude),7)
@@ -32,6 +36,8 @@ ev_chargers_reviews$Longitude <- round(as.numeric(ev_chargers_reviews$Longitude)
 parking_maastricht$latitude <- round(as.numeric(parking_maastricht$latitude),7)
 parking_maastricht$longitude <- round(as.numeric(parking_maastricht$longitude),7)
 demog_data$StringValue <- as.character(demog_data$StringValue)
+aggregate_rating$Latitude <- round(as.numeric(aggregate_rating$Latitude),7)
+aggregate_rating$Longitude <- round(as.numeric(aggregate_rating$Longitude),7)
 
 # Function to calculate distance between two set of coordinates.
 haversine_distance <- function(lat1, lon1, lat2, lon2) {
@@ -60,6 +66,9 @@ names(ev_chargers_reviews)[names(ev_chargers_reviews) == "Latitude"] <- "charger
 names(demog_data)[names(demog_data) == "Longitude"] <- "charger_longitude"
 names(demog_data)[names(demog_data) == "Latitude"] <- "charger_latitude"
 
+names(aggregate_rating)[names(aggregate_rating) == "Longitude"] <- "charger_longitude"
+names(aggregate_rating)[names(aggregate_rating) == "Latitude"] <- "charger_latitude"
+
 # Reshaping the table
 reshaped_poi_locations <- dcast(poi_locations, charger_longitude + charger_latitude ~ type, value.var = "distance")
 
@@ -74,12 +83,29 @@ reshaped_poi_locations$postal_trim <- substr(reshaped_poi_locations$`Postal.Code
 reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(demog_data, by = c("postal_trim"="StringValue"))
 
+# Adding aggregate charger information
+reshaped_poi_locations <- reshaped_poi_locations %>%
+  left_join(aggregate_rating, by = c("charger_longitude" = "charger_longitude", "charger_latitude" = "charger_latitude"))
+
 # Clean one column that is completely null
 reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locations) == "WijkenEnBuurten")]
 
 # Checking and fixing variable names
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
+
+# Some variables needs to be deleted for the model (e.g Postal Code), so this step generate an excel to select those variables.
+# Convert the column names to a single column using gather()
+col_names_review <- gather(data.frame(names(reshaped_poi_locations)), "Model Variables")
+
+# Write the column names to an Excel file using writexl
+write_xlsx(col_names_review, "column_names.xlsx")
+
+# Extract variables before running the models
+reshaped_poi_locations <- select(reshaped_poi_locations, -Name, -Address, -Reviews, -Ratings.Total, -Postal.Code, -Street.Number, -Route, -Locality, -Admin.Area.Level.1, -Admin.Area.Level.2, -Country, -Phone.Number, -Website, -Opening.Hours, -postal_trim)
+
+# Save the data prepared for modeling creation
+write_xlsx(reshaped_poi_locations, "reshaped_poi_locations.xlsx")
 
 ## Random Forest Model ##
 
@@ -100,6 +126,11 @@ cv_scheme <- createFolds(train_data$Rating, k = 10)
 
 # Initialize variables to store the results
 cv_results <- data.frame(n_features = integer(), mean_rmse = numeric())
+
+# Want to find to iterate all variables or calculate the full model (ITERATE/FULL)
+mode_cal <- "FULL"
+
+# Random Forest model calculation
 
 # Loop through different numbers of features
 for (n_features in 1:length(importance)) {
@@ -143,6 +174,7 @@ cat("Best number of features:", best_n_features)
 
 # Select the best features names.
 best_top_features <- names(importance)[order(importance, decreasing = TRUE)][1:best_n_features]
+
 
 # Select only the variables from the best top features.
 train_data_selected <- train_data[, c(best_top_features, "Rating")]
