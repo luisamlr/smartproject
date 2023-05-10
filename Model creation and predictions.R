@@ -70,7 +70,11 @@ names(aggregate_rating)[names(aggregate_rating) == "Longitude"] <- "charger_long
 names(aggregate_rating)[names(aggregate_rating) == "Latitude"] <- "charger_latitude"
 
 # Reshaping the table
-reshaped_poi_locations <- dcast(poi_locations, charger_longitude + charger_latitude ~ type, value.var = "distance")
+reshaped_poi_locations <- poi_locations %>%
+  group_by(charger_longitude, charger_latitude, type) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  spread(key = type, value = count, fill = 0)
 
 # Adding charger information
 reshaped_poi_locations <- reshaped_poi_locations %>%
@@ -127,10 +131,12 @@ cv_scheme <- createFolds(train_data$Rating, k = 10)
 # Initialize variables to store the results
 cv_results <- data.frame(n_features = integer(), mean_rmse = numeric())
 
-# Want to find to iterate all variables or calculate the full model (ITERATE/FULL)
-mode_cal <- "FULL"
-
 # Random Forest model calculation
+
+# Want to find to iterate all variables (takes around 40 min) or calculate the full model (ITERATE/FULL)
+model_cal <- "FULL"
+
+if (model_cal == "ITERATE") {
 
 # Loop through different numbers of features
 for (n_features in 1:length(importance)) {
@@ -174,10 +180,38 @@ cat("Best number of features:", best_n_features)
 
 # Select the best features names.
 best_top_features <- names(importance)[order(importance, decreasing = TRUE)][1:best_n_features]
-
+best_top_features
 
 # Select only the variables from the best top features.
 train_data_selected <- train_data[, c(best_top_features, "Rating")]
+
+} else {
+  # Initialize a variable to store the RMSE values for each fold
+  fold_rmse_full <- numeric()
+  
+  # Perform cross-validation for the full model
+  for (i in 1:length(cv_scheme)) {
+    train_fold_full <- train_data[-cv_scheme[[i]], ]
+    test_fold_full <- train_data[cv_scheme[[i]], ]
+    
+    # Train the model with all features
+    rf_model_full <- ranger(Rating ~ ., data = train_fold_full)
+    
+    # Make predictions for the test fold
+    predictions_full <- predict(rf_model_full, data = test_fold_full)$predictions
+    
+    # Calculate the RMSE for the test fold
+    fold_rmse_full[i] <- sqrt(mean((test_fold_full$Rating - predictions_full)^2))
+  }
+  
+  # Calculate the mean RMSE across all folds for the full model
+  mean_rmse_full <- mean(fold_rmse_full)
+  cat("Mean RMSE for the full model:", mean_rmse_full)
+  
+  # Use all features for the final model
+  best_top_features <- colnames(train_data[, -ncol(train_data)]) # Exclude the "Rating" column
+  train_data_selected <- train_data
+}
 
 # 
 final_rf_model <- ranger(Rating ~ ., data = train_data_selected)
@@ -189,17 +223,6 @@ predictions <- predict(final_rf_model, data = test_data_selected)$predictions
 
 # SVM
 
-control <- rfeControl(functions = caretFuncs, method = "cv", number = 10)
-
-rfe_results <- rfe(train_data[, -which(names(train_data) == "Rating")],
-                   train_data$Rating,
-                   sizes = 1:ncol(train_data[, -which(names(train_data) == "Rating")]),
-                   rfeControl = control)
-
-best_n_features_svm <- rfe_results$optVariables
-best_top_features_svm <- rfe_results$variables[1:best_n_features_svm, "varName"]
-
-train_data_selected_svm <- train_data[, c(best_top_features_svm, "Rating")]
-final_svm_model <- svm(Rating ~ ., data = train_data_selected_svm)
+final_svm_model <- svm(Rating ~ ., data = train_data)
 test_data_selected_svm <- test_data[, best_top_features_svm]
 predictions_svm <- predict(final_svm_model, newdata = test_data_selected_svm)
