@@ -9,6 +9,7 @@ library(writexl)
 library(ranger)
 library(caret)
 library(e1071)
+library(tidyr)
 
 # Loading chargers information.
 ev_chargers_reviews <- read.csv("All_Chargers.csv")
@@ -93,6 +94,19 @@ reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locat
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
 
+# Some variables needs to be deleted for the model (e.g Postal Code), so this step generate an excel to select those variables.
+# Convert the column names to a single column using gather()
+col_names_review <- gather(data.frame(names(reshaped_poi_locations)), "Model Variables")
+
+# Write the column names to an Excel file using writexl
+write_xlsx(col_names_review, "column_names.xlsx")
+
+# Extract variables before running the models
+reshaped_poi_locations <- select(reshaped_poi_locations, -Name, -Address, -Reviews, -Ratings.Total, -Postal.Code, -Street.Number, -Route, -Locality, -Admin.Area.Level.1, -Admin.Area.Level.2, -Country, -Phone.Number, -Website, -Opening.Hours, -postal_trim)
+
+# Save the data prepared for modeling creation
+write_xlsx(reshaped_poi_locations, "reshaped_poi_locations.xlsx")
+
 ## Random Forest Model ##
 
 # Split the data into training (70%) and testing (30%) sets
@@ -118,7 +132,6 @@ mode_cal <- "FULL"
 
 # Random Forest model calculation
 
-if (model_cal == "FULL") {
 # Loop through different numbers of features
 for (n_features in 1:length(importance)) {
   
@@ -161,7 +174,6 @@ cat("Best number of features:", best_n_features)
 
 # Select the best features names.
 best_top_features <- names(importance)[order(importance, decreasing = TRUE)][1:best_n_features]
-}
 
 
 # Select only the variables from the best top features.
