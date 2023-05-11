@@ -1,52 +1,6 @@
-# Bayesian Model
-df_model <- read_excel("reshaped_poi_locations.xlsx")
-
-# Define the number of bootstrap samples
-n_boot <- 1000
-
-# Create an empty vector to store the RMSE values
-rmse_values <- numeric(n_boot)
-
-# Perform bootstrapping
-for (i in 1:n_boot) {
-  # Resample the test data with replacement
-  resampled_data <- test_data[sample(nrow(test_data), replace = TRUE), ]
-  
-  # Make predictions on the resampled data
-  resampled_predictions <- predict(rf_model, data = resampled_data)$predictionsRs
-  
-  # Calculate the RMSE on the resampled predictions
-  resampled_rmse <- sqrt(mean((resampled_predictions - resampled_data$Rating)^2))
-  
-  # Store the RMSE value
-  rmse_values[i] <- resampled_rmse
-}
-
-# Compute the lower and upper bounds of the 95% confidence interval
-lower_bound <- quantile(rmse_values, 0.025)
-upper_bound <- quantile(rmse_values, 0.975)
-
-# Print the confidence interval
-cat("95% Confidence Interval for RMSE:", lower_bound, "-", upper_bound)
-
-cor(predictions,actual_values)
 # Load required library for plotting
 library(ggplot2)
-
-# Create a data frame with predictions and actual_values
-data <- data.frame(predictions, actual_values)
-
-# Plot the correlation using a scatter plot
-ggplot(data, aes(x = predictions, y = actual_values)) +
-  geom_point() +
-  labs(x = "Predictions", y = "Actual Values") +
-  ggtitle("Correlation between Predictions and Actual Values") +
-  xlim(0, 5)
-
-library(Rserve)
-Rserve(args="--save")
-
-
+library(readxl)
 library(randomForest)
 library(caret)
 library(xgboost)
@@ -56,6 +10,7 @@ library(readxl)
 library(e1071)
 library(gbm)
 
+# Import dataset
 df_model <- read_excel("reshaped_poi_locations.xlsx")
 
 # Set up 10-fold cross-validation
@@ -134,4 +89,6 @@ print(paste("SVM Train RMSE:", avg_svm_rmse_train))
 print(paste("SVM Test RMSE:", avg_svm_rmse_test))
 print(paste("GBM Train RMSE:", avg_gbm_rmse_train))
 print(paste("GBM Test RMSE:", avg_gbm_rmse_test))
+
+
 
