@@ -376,7 +376,7 @@ for (column in colnames(potential_charging_stations)) {
 # Remove non-numeric columns
 potential_charging_stations_numeric <- potential_charging_stations[, !(colnames(potential_charging_stations) %in% non_numeric_columns)]
 
-
+# Changes made
 
 
 
