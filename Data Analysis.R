@@ -351,14 +351,31 @@ avg10 <- c()
 
 for (i in 1:nrow(potential_charging_stations)){
   # Find the nearest rating per CS
-  n_rating[i]<-rating_nearest(potential_charging_stations$charger_longitude[i], potential_charging_stations$charger_latitude[i], df_limburg,1)
+  n_rating[i]<-rating_nearest(potential_charging_stations$charger_latitude[i],potential_charging_stations$charger_longitude[i], df_limburg,1)
   # Find the avg 3 nearest rating per CS
-  avg3[i]<-rating_nearest(potential_charging_stations$charger_longitude[i], potential_charging_stations$charger_latitude[i], df_limburg, 3)
+  avg3[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 3)
   # Find the avg 5 nearest rating per CS
-  avg5[i]<-rating_nearest(potential_charging_stations$charger_longitude[i], potential_charging_stations$charger_latitude[i], df_limburg, 5) 
+  avg5[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 5) 
   # Find the avg 10 nearest rating per CS
-  avg10[i]<-rating_nearest(potential_charging_stations$charger_longitude[i], potential_charging_stations$charger_latitude[i], df_limburg, 10)
+  avg10[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 10)
 }
+
+potential_charging_stations<-cbind(potential_charging_stations, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
+
+# Extract first 4 characters from the "postcode" column
+potential_charging_stations$postcode <- as.numeric(substr(potential_charging_stations$postcode, 1, 4))
+
+# Identify non-numeric columns
+non_numeric_columns <- c()
+for (column in colnames(potential_charging_stations)) {
+  if (!is.numeric(potential_charging_stations[[column]])) {
+    non_numeric_columns <- c(non_numeric_columns, column)
+  }
+}
+
+# Remove non-numeric columns
+potential_charging_stations_numeric <- potential_charging_stations[, !(colnames(potential_charging_stations) %in% non_numeric_columns)]
+
 
 
 
