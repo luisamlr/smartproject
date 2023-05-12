@@ -145,7 +145,7 @@ for (i in 1:nrow(df_all)) {
 df_cs<-cbind(df_cs, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
 
 
-# Whole sample analysis
+##### Whole sample analysis #####
 hist(df_cs$n_rating , xlab = "Rating Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Ratings Closest Station")
 hist(df_cs$avg3 , xlab = "Avg. Rating 3 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 3 Closest Station")
 hist(df_cs$avg5 , xlab = "Avg. Rating 5 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 5 Closest Station")
@@ -279,8 +279,114 @@ ggplot(df_cs, aes(x = as.factor(round(Rating,0)), y = counts_1000)) +
 
 # Load the openxlsx package
 library(openxlsx)
+library(dplyr)
 
 # Replace "path/to/file" with the file path and name you want to save your Excel file to
 write.xlsx(df_cs, "data_variables_roger.xlsx", rowNames = FALSE)
+
+##### Compute new variables for potential parking spots####
+library(dplyr)
+library(tidyr)
+
+facilities_around_coordinates_parking <- read_csv("facilities_around_coordinates_parking.xlsx")
+
+# Reshaping the table
+reshaped_poi_locations <- facilities_around_coordinates_parking  %>%
+  group_by(charger_longitude, charger_latitude, type) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  spread(key = type, value = count, fill = 0)
+
+write.xlsx(reshaped_poi_locations, "potential_parking_roger.xlsx", rowNames = FALSE)
+
+library(readxl)
+potential_charging_stations <- read_excel("potential_charging_stations.xlsx")
+
+potential_charging_stations<-potential_charging_stations %>%
+  filter(city == "Maastricht")
+potential_charging_stations$charger_longitude <- as.numeric(gsub(",", ".", potential_charging_stations$charger_longitude))
+potential_charging_stations$charger_latitude <- as.numeric(gsub(",", ".", potential_charging_stations$charger_latitude))
+
+# initialize empty vector to store counts
+counts_1000 <- c()
+counts_500 <- c()
+counts_250 <- c()
+counts_100<-c()
+# loop over each row in the dataframe
+
+for (i in 1:nrow(potential_charging_stations)) {
+    # check if the row has a rating
+    distances<-c()
+    # calculate distance between this row and all other rows
+    for (j in 1:nrow(df_all)){
+      distances[j]<- distHaversine(c(potential_charging_stations$charger_longitude[i], potential_charging_stations$charger_latitude[i]), c(df_all$Longitude[j], df_all$Latitude[j]))
+    }
+    # count how many distances are less than 1000m
+    count_1000 <- nrow(df_all[distances <= 1000,]) #Do not subtract 1 because in this case the potential station is not in the data frame
+    # count how many distances are less than 500m
+    count_500 <- nrow(df_all[distances <= 500,])  #Do not subtract 1 because in this case the potential station is not in the data frame
+    # count how many distances are less than 250m
+    count_250 <- nrow(df_all[distances <= 250,]) #Do not subtract 1 because in this case the potential station is not in the data frame
+    # count how many distances are less than 100m
+    count_100 <- nrow(df_all[distances <= 100,]) #Do not subtract 1 because in this case the potential station is not in the data frame
+    # add count to vector
+    counts_1000<- c(counts_1000, count_1000)
+    # add count to vector
+    counts_500<- c(counts_500, count_500)
+    # add count to vector
+    counts_250<- c(counts_250, count_250)
+    # add count to vector
+    counts_100<- c(counts_100, count_100)
+}
+df_cs$Admin.Area.Level.1
+
+# Select only Limburg stations to make code more efficient
+df_limburg<-df_cs%>%
+  filter(Admin.Area.Level.1 == "Limburg") 
+
+n_rating <- c()
+avg3 <- c()
+avg5 <- c()
+avg10 <- c()
+
+for (i in 1:nrow(potential_charging_stations)){
+  # Find the nearest rating per CS
+  n_rating[i]<-rating_nearest(potential_charging_stations$charger_latitude[i],potential_charging_stations$charger_longitude[i], df_limburg,1)
+  # Find the avg 3 nearest rating per CS
+  avg3[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 3)
+  # Find the avg 5 nearest rating per CS
+  avg5[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 5) 
+  # Find the avg 10 nearest rating per CS
+  avg10[i]<-rating_nearest(potential_charging_stations$charger_latitude[i], potential_charging_stations$charger_longitude[i], df_limburg, 10)
+}
+
+potential_charging_stations<-cbind(potential_charging_stations, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
+
+# Extract first 4 characters from the "postcode" column
+potential_charging_stations$postcode <- as.numeric(substr(potential_charging_stations$postcode, 1, 4))
+
+# Identify non-numeric columns
+non_numeric_columns <- c()
+for (column in colnames(potential_charging_stations)) {
+  if (!is.numeric(potential_charging_stations[[column]])) {
+    non_numeric_columns <- c(non_numeric_columns, column)
+  }
+}
+
+# Remove non-numeric columns
+potential_charging_stations <- potential_charging_stations[, !(colnames(potential_charging_stations) %in% non_numeric_columns)]
+
+# Add information from CBS 
+CBS <- read_excel("CBS.xlsx")
+
+potential_charging_stations <- potential_charging_stations %>%
+  left_join(CBS, by = c("postcode" = "StringValue"))
+
+# Export the final file with potential charging stations
+# Load the writexl package
+library(writexl)
+
+# Export data frame to an Excel file
+write_xlsx(potential_charging_stations, "potential_CS.xlsx")
 
 
