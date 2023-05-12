@@ -125,4 +125,49 @@ print(potential_CS)
 print(df_model)
 
 rf_model <- randomForest(formula = Rating ~ ., data = df_model)
+lm_model <-lm(formula = Rating ~ ., data = df_model)
+gbm_model <- gbm(Rating ~ ., data = df_model, n.trees = 100, interaction.depth = 3, shrinkage = 0.1)
 
+residuals <- df_model$Rating - predict(gbm_model, newdata = df_model, n.trees = 100)
+cor(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100))
+
+# Calculate the correlation
+correlation <- cor(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100))
+
+# Plot the correlation
+plot(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100),
+     xlab = "Actual Ratings", ylab = "Predicted Ratings",
+     main = paste("Correlation:", round(correlation, 2)))
+library(ggplot2)
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = df_model$Rating,
+                 Predicted = predict(gbm_model, newdata = df_model, n.trees = 100))
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x = Actual, y = Predicted)) +
+  geom_point() +
+  xlab("Actual Ratings") +
+  ylab("Predicted Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  ylim(0,5)
+
+
+standard_error <- sd(residuals)
+# Generate predictions
+gbm_pred <- predict(gbm_model, newdata = potential_CS, n.trees = 100)
+
+critical_value <- 1.96
+lower_bound <- gbm_pred - critical_value * standard_error
+upper_bound <- gbm_pred + critical_value * standard_error
+confidence_interval <- c(lower_bound, upper_bound)
+
+
+final<-cbind(potential_CS, Prediction = gbm_pred, lower_bound, upper_bound)
+
+library(writexl)
+# Export data frame to an Excel file
+write_xlsx(final, "potential_CS_final.xlsx") 
