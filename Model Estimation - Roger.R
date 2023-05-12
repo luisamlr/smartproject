@@ -10,6 +10,7 @@ library(readxl)
 library(e1071)
 library(gbm)
 
+set.seed(123)
 # Import dataset
 df_model <- read_excel("reshaped_poi_locations.xlsx")
 
@@ -128,7 +129,82 @@ rf_model <- randomForest(formula = Rating ~ ., data = df_model)
 lm_model <-lm(formula = Rating ~ ., data = df_model)
 gbm_model <- gbm(Rating ~ ., data = df_model, n.trees = 100, interaction.depth = 3, shrinkage = 0.1)
 
-residuals <- df_model$Rating - predict(gbm_model, newdata = df_model, n.trees = 100)
+# Improve the model:
+library(gbm)
+library(caret)
+
+# Define the parameter grid
+parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
+                              interaction.depth = c(2, 3, 4),
+                              shrinkage = c(0.1, 0.2, 0.3))
+
+# Initialize variables for best parameters and RMSE
+best_params <- NULL
+best_rmse <- Inf
+
+# Perform grid search
+for (i in 1:nrow(parameter_grid)) {
+  # Fit the model with current parameter combination
+  gbm_model <- gbm(Rating ~ ., data = df_model,
+                   n.trees = parameter_grid$n.trees[i],
+                   interaction.depth = parameter_grid$interaction.depth[i],
+                   shrinkage = parameter_grid$shrinkage[i])
+  
+  # Generate predictions
+  gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = parameter_grid$n.trees[i])
+  
+  # Calculate RMSE
+  rmse <- sqrt(mean((df_model$Rating - gbm_pred)^2))
+  
+  # Check if current parameter combination is the best
+  if (rmse < best_rmse) {
+    best_params <- parameter_grid[i, ]
+    best_rmse <- rmse
+  }
+}
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(best_params)
+cat("RMSE:", best_rmse)
+library(gbm)
+library(caret)
+
+# Define the parameter grid with corrected column names
+parameter_grid <- expand.grid(n.trees = c(50, 75, 100, 125, 150, 175, 200, 225, 250, 275),
+                              interaction.depth = c(2, 3, 4, 5, 6, 7, 8),
+                              shrinkage = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
+                              n.minobsinnode = 10)
+
+# Set up cross-validation
+ctrl <- trainControl(method = "cv", number = 5)  # 5-fold cross-validation
+
+# Perform grid search and cross-validation
+gbm_model <- train(Rating ~ ., data = df_model,
+                   method = "gbm",
+                   trControl = ctrl,
+                   tuneGrid = parameter_grid)
+
+# Get the best model
+best_model <- gbm_model$finalModel
+
+# Generate predictions on the training set
+gbm_pred <- predict(best_model, newdata = df_model, n.trees = best_model$n.trees)
+
+# Calculate RMSE on the training set
+rmse <- sqrt(mean((df_model$Rating - gbm_pred)^2))
+
+# Print the best parameters and RMSE
+cat("Best Parameters:\n")
+print(gbm_model$bestTune)
+cat("RMSE on training set:", rmse)
+
+
+
+
+
+
+residuals <- df_model$Rating - predict(gbm_model, newdata = df_model, n.trees = 150 , interaction.depth = 4, shrinkage = 0.3)
 cor(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100))
 
 # Calculate the correlation
