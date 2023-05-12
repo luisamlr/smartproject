@@ -99,6 +99,9 @@ library(ranger)
 df_model <- read_excel("reshaped_poi_locations.xlsx")
 potential_CS <- read_excel("potential_CS.xlsx")
 
+#Remove column weijkenwurten
+
+
 add_missing_columns <- function(df1, df2) {
   missing_cols_df1 <- setdiff(names(df2), names(df1))
   missing_cols_df2 <- setdiff(names(df1), names(df2))
@@ -169,11 +172,12 @@ print(best_params)
 cat("RMSE:", best_rmse)
 library(gbm)
 library(caret)
+set.seed(123)
 
 # Define the parameter grid with corrected column names
-parameter_grid <- expand.grid(n.trees = c(50, 75, 100, 125, 150, 175, 200, 225, 250, 275),
-                              interaction.depth = c(2, 3, 4, 5, 6, 7, 8),
-                              shrinkage = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6),
+parameter_grid <- expand.grid(n.trees = c( 50, 75, 100, 125, 150),
+                              interaction.depth = c(1, 2, 3, 4),
+                              shrinkage = c(0.1, 0.2, 0.3),
                               n.minobsinnode = 10)
 
 # Set up cross-validation
@@ -199,26 +203,14 @@ cat("Best Parameters:\n")
 print(gbm_model$bestTune)
 cat("RMSE on training set:", rmse)
 
-
-
-
-
-
-residuals <- df_model$Rating - predict(gbm_model, newdata = df_model, n.trees = 150 , interaction.depth = 4, shrinkage = 0.3)
-cor(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100))
-
 # Calculate the correlation
-correlation <- cor(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100))
+correlation <- cor(df_model$Rating, gbm_pred)
 
-# Plot the correlation
-plot(df_model$Rating, predict(gbm_model, newdata = df_model, n.trees = 100),
-     xlab = "Actual Ratings", ylab = "Predicted Ratings",
-     main = paste("Correlation:", round(correlation, 2)))
 library(ggplot2)
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = df_model$Rating,
-                 Predicted = predict(gbm_model, newdata = df_model, n.trees = 100))
+                 Predicted = gbm_pred)
 
 # Calculate the correlation
 correlation <- cor(df$Actual, df$Predicted)
@@ -235,6 +227,98 @@ ggplot(df, aes(x = Actual, y = Predicted)) +
 standard_error <- sd(residuals)
 # Generate predictions
 gbm_pred <- predict(gbm_model, newdata = potential_CS, n.trees = 100)
+
+
+library(caret)
+
+# Define the parameter grid
+parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
+                              interaction.depth = c(2, 3, 4),
+                              shrinkage = c(0.1, 0.2, 0.3))
+
+# Initialize variables for best parameters and RMSE
+best_params <- NULL
+best_rmse <- Inf
+
+# Perform grid search with k-fold cross-validation
+k <- 10  # Number of folds
+set.seed(42)  # Set seed for reproducibility
+
+for (i in 1:nrow(parameter_grid)) {
+  # Initialize variable for average RMSE across folds
+  avg_rmse <- 0
+  
+  for (fold in 1:k) {
+    # Create training and testing indices for the current fold
+    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
+    train_indices <- unlist(indices[-fold])
+    test_indices <- indices[[fold]]
+    
+    # Split data into training and testing sets for the current fold
+    train_data <- df_model[train_indices, ]
+    test_data <- df_model[test_indices, ]
+    
+    # Fit the model with current parameter combination
+    gbm_model <- gbm(Rating ~ ., data = train_data,
+                     n.trees = parameter_grid$n.trees[i],
+                     interaction.depth = parameter_grid$interaction.depth[i],
+                     shrinkage = parameter_grid$shrinkage[i])
+    
+    # Generate predictions for the testing set
+    gbm_pred <- predict(gbm_model, newdata = test_data, n.trees = parameter_grid$n.trees[i])
+    
+    # Calculate RMSE for the current fold
+    fold_rmse <- sqrt(mean((test_data$Rating - gbm_pred)^2))
+    
+    # Accumulate RMSE across folds
+    avg_rmse <- avg_rmse + fold_rmse
+  }
+  
+  # Calculate average RMSE across folds
+  avg_rmse <- avg_rmse / k
+  
+  # Check if current parameter combination is the best
+  if (avg_rmse < best_rmse) {
+    best_params <- parameter_grid[i, ]
+    best_rmse <- avg_rmse
+  }
+}
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(best_params)
+cat("RMSE:", best_rmse)
+
+# Fit the model with current parameter combination
+gbm_model <- gbm(Rating ~ ., data = df_model,
+                 n.trees = 50,
+                 interaction.depth = 3,
+                 shrinkage = 0.1)
+
+# Generate predictions for the testing set
+gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = 50)
+
+
+library(ggplot2)
+
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = df_model$Rating,
+                 Predicted = gbm_pred)
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x = Actual, y = Predicted)) +
+  geom_point() +
+  xlab("Actual Ratings") +
+  ylab("Predicted Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  ylim(0,5)
+
+
+standard_error <- sd(df$Actual-df$Predicted)
 
 critical_value <- 1.96
 lower_bound <- gbm_pred - critical_value * standard_error

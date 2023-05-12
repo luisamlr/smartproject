@@ -99,7 +99,7 @@ for (i in 1:nrow(df_cs)){
   cls[i]<-closest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs)
 }
 
-#### Calculate how many stations are under 1000m, 500m and 200m
+#### Calculate how many stations are under 1000m, 500m and 200m####
 
 # Import the dataset ---- We work with the whole dataset since we do not care whether they have review or not in order to take into account 
 df_all<-read.csv("All_Chargers.csv")
@@ -288,7 +288,7 @@ write.xlsx(df_cs, "data_variables_roger.xlsx", rowNames = FALSE)
 library(dplyr)
 library(tidyr)
 
-facilities_around_coordinates_parking <- read_csv("facilities_around_coordinates_parking.xlsx")
+facilities_around_coordinates_parking <- read_xlsx("facilities_around_coordinates_parking.xlsx")
 
 # Reshaping the table
 reshaped_poi_locations <- facilities_around_coordinates_parking  %>%
@@ -379,12 +379,14 @@ potential_charging_stations <- potential_charging_stations[, !(colnames(potentia
 # Add information from CBS 
 CBS <- read_excel("CBS.xlsx")
 
+library(dplyr)
 potential_charging_stations <- potential_charging_stations %>%
   left_join(CBS, by = c("postcode" = "StringValue"))
 
 # Export the final file with potential charging stations
 # Load the writexl package
 library(writexl)
+potential_charging_stations <- potential_charging_stations[, -which(names(potential_charging_stations) == "WijkenEnBuurten")]
 
 # Export data frame to an Excel file
 write_xlsx(potential_charging_stations, "potential_CS.xlsx")
