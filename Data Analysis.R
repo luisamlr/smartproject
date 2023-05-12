@@ -374,9 +374,19 @@ for (column in colnames(potential_charging_stations)) {
 }
 
 # Remove non-numeric columns
-potential_charging_stations_numeric <- potential_charging_stations[, !(colnames(potential_charging_stations) %in% non_numeric_columns)]
+potential_charging_stations <- potential_charging_stations[, !(colnames(potential_charging_stations) %in% non_numeric_columns)]
 
-# Changes made
+# Add information from CBS 
+CBS <- read_excel("CBS.xlsx")
 
+potential_charging_stations <- potential_charging_stations %>%
+  left_join(CBS, by = c("postcode" = "StringValue"))
+
+# Export the final file with potential charging stations
+# Load the writexl package
+library(writexl)
+
+# Export data frame to an Excel file
+write_xlsx(potential_charging_stations, "potential_CS.xlsx")
 
 
