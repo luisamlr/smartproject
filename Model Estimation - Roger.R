@@ -91,4 +91,38 @@ print(paste("GBM Train RMSE:", avg_gbm_rmse_train))
 print(paste("GBM Test RMSE:", avg_gbm_rmse_test))
 
 
+##### Model #### 
+library(ranger)
+
+# Import dataset
+df_model <- read_excel("reshaped_poi_locations.xlsx")
+potential_CS <- read_excel("potential_CS.xlsx")
+
+add_missing_columns <- function(df1, df2) {
+  missing_cols_df1 <- setdiff(names(df2), names(df1))
+  missing_cols_df2 <- setdiff(names(df1), names(df2))
+  
+  # Add missing columns to df1 and fill with zeros
+  for (col in missing_cols_df1) {
+    df1[[col]] <- 0
+  }
+  
+  # Add missing columns to df2 and fill with zeros
+  for (col in missing_cols_df2) {
+    df2[[col]] <- 0
+  }
+  
+  return(list(df1 = df1, df2 = df2))
+}
+
+# Example usage with potential_CS and df_model
+result <- add_missing_columns(potential_CS, df_model)
+potential_CS <- result$df1
+df_model<- result$df2
+
+# Output the modified data frames
+print(potential_CS)
+print(df_model)
+
+rf_model <- randomForest(formula = Rating ~ ., data = df_model)
 
