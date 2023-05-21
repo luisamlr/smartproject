@@ -1,4 +1,5 @@
 # Install and load the required packages
+
 library(caTools)
 library(randomForest)
 library(dplyr)
@@ -11,24 +12,51 @@ library(caret)
 library(e1071)
 library(tidyr)
 
-# Loading chargers information.
-ev_chargers_reviews <- read.csv("All_Chargers.csv")
-poi_locations <- read_excel("facilities_around_coordinates.xlsx")
-demog_data <- read_excel("CBS.xlsx")
-parking_maastricht <- read_excel("parking_spots_maastricht.xlsx")
-aggregate_rating <- read_excel("data_variables_roger.xlsx")
+setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/All Files/") 
+
+### Loading the extracted files obtained from the Google API: ###
+
+# Listing all the files present in the specified directory.
+file_list <- list.files()
+
+# Read all the files and bind them into a single data frame.
+all_data <- lapply(file_list, function(file) {
+  read_delim(file, col_types = cols(.default = "c"), delim = ';')  # read_delim() to specify the delimiter
+}) %>% bind_rows()
+
+# Eliminate duplicates based on all columns.
+unique_data <- all_data %>%
+  distinct()
+
+# The consolidated file is saved as a CSV for manual checking and analysis of the data.
+write_csv(unique_data, "C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/Consolidated Files/All_Chargers.csv")
+
+# Creating an additional file, only containing the rows where ratings are present.
+unique_data_rv <- unique_data %>%
+  filter(`Ratings Total` > 0)
+
+write_csv(unique_data_rv, "C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/Consolidated Files/ev_stations_review.csv")
+
+### Consolidation of Data from Diverse Sources ###
+
+# Loading of the data.
+ev_chargers_reviews <- read.csv("All_Chargers.csv") # All chargers location, from GMaps.
+poi_locations <- read_excel("facilities_around_coordinates.xlsx") # Facilities around chargers, from OpenStreetMap
+demog_data <- read_excel("CBS.xlsx") # Demographic information for every Dutch postal code, From CBS
+parking_maastricht <- read_excel("parking_spots_maastricht.xlsx") # Maastrich parking spots, from Gmaps.
+aggregate_rating <- read_excel("data_variables_roger.xlsx") # Aggregate information of every charger.
 aggregate_rating <- select(aggregate_rating, Latitude, Longitude, n_rating, avg3, avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
-highway_dist <- read.csv("highway_dist.csv")
+highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway, from Gmaps.
 highway_dist <- select(highway_dist,charger_longitude,charger_latitude)
 
-# Eliminate duplicates
+# Eliminate duplicates.
 ev_chargers_reviews <- distinct(ev_chargers_reviews)
 poi_locations <- distinct(poi_locations)
 demog_data <- distinct(demog_data)
 parking_maastricht <- distinct(parking_maastricht)
 aggregate_rating <- distinct(aggregate_rating)
 
-# Format corrections for necessary variables.
+# Standardization of decimal coordinates in all files, to avoid problems when joining information.
 poi_locations$latitude <- round(as.numeric(poi_locations$latitude),7)
 poi_locations$longitude <- round(as.numeric(poi_locations$longitude),7)
 poi_locations$charger_latitude <- round(as.numeric(poi_locations$charger_latitude),7)
@@ -37,9 +65,11 @@ ev_chargers_reviews$Latitude <- round(as.numeric(ev_chargers_reviews$Latitude),7
 ev_chargers_reviews$Longitude <- round(as.numeric(ev_chargers_reviews$Longitude),7)
 parking_maastricht$latitude <- round(as.numeric(parking_maastricht$latitude),7)
 parking_maastricht$longitude <- round(as.numeric(parking_maastricht$longitude),7)
-demog_data$StringValue <- as.character(demog_data$StringValue)
 aggregate_rating$Latitude <- round(as.numeric(aggregate_rating$Latitude),7)
 aggregate_rating$Longitude <- round(as.numeric(aggregate_rating$Longitude),7)
+
+# Additional data format corrections.
+demog_data$StringValue <- as.character(demog_data$StringValue)
 
 # Function to calculate distance between two set of coordinates.
 haversine_distance <- function(lat1, lon1, lat2, lon2) {
@@ -52,12 +82,13 @@ haversine_distance <- function(lat1, lon1, lat2, lon2) {
   # Calculate Haversine distance
   a <- sin((lat2 - lat1) / 2)^2 + cos(lat1) * cos(lat2) * sin((lon2 - lon1) / 2)^2
   c <- 2 * atan2(sqrt(a), sqrt(1 - a))
-  R <- 6371 # Earth's mean radius in kilometers (corrected)
+  R <- 6371 # Earth's mean radius in kilometers
   d <- R * c
   
   return(d)
 }
 
+# Applying Haversine distance
 poi_locations$distance <- mapply(haversine_distance, poi_locations$charger_latitude, poi_locations$charger_longitude, poi_locations$latitude, poi_locations$longitude)
 poi_locations$distance <- as.numeric(poi_locations$distance)
 
