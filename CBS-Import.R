@@ -41,7 +41,7 @@ df_socio_eco <- obs_data %>%
 data_pre <- left_join(df_socio_eco, as.data.frame(data_pc) , by="WijkenEnBuurten")
 # Remove the observation that are at the city level, or at the state level.
 data_pre <- filter(data_pre, !is.na(StringValue))
-# We have to aggregate the data by taking the mean of the postcode 
+# Aggregate the data by taking the mean of the postcode 
 data_pre <- data_pre %>%
   group_by(StringValue) %>%
   summarize_all(mean, na.rm = TRUE)
