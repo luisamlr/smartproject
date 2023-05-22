@@ -95,7 +95,6 @@ print(paste("GBM Test RMSE:", avg_gbm_rmse_test))
 
 
 ##### Model  DATA preparation#### 
-library(ranger)
 
 # Import dataset
 df_model <- read_excel("reshaped_poi_locations.xlsx")
@@ -136,13 +135,14 @@ gbm_model <- gbm(Rating ~ ., data = df_model, n.trees = 100, interaction.depth =
 
 ###### GBM - Model and estimation#####
 # Define the parameter grid
-parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
-                              interaction.depth = c(2, 3, 4),
-                              shrinkage = c(0.1, 0.2, 0.3))
+parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150, 175, 200),
+                              interaction.depth = c(2, 3, 4, 5, 6, 7),
+                              shrinkage = c(0.1, 0.2, 0.3, 0.4, 0.5))
 
 # Initialize variables for best parameters and RMSE
 best_params <- NULL
 best_rmse <- Inf
+rmse_comb <- c()
 
 # Perform grid search with k-fold cross-validation
 k <- 10  # Number of folds
@@ -180,7 +180,7 @@ for (i in 1:nrow(parameter_grid)) {
   
   # Calculate average RMSE across folds
   avg_rmse <- avg_rmse / k
-  
+  rmse_comb[i]<-avg_rmse
   # Check if current parameter combination is the best
   if (avg_rmse < best_rmse) {
     best_params <- parameter_grid[i, ]
@@ -233,13 +233,112 @@ lower_bound <- prediction_new - critical_value * standard_error
 upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
-final<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
 
 # Export data frame to an Excel file
-write_xlsx(final, "potential_CS_final.xlsx") 
+# write_xlsx(final, "potential_CS_final.xlsx") 
 
 
 ###### RF - Model and estimation####
 ###### SVM - Model and estimation####
+# Define the parameter grid
+parameterGrid <- expand.grid(
+       # Cost values
+  .kernel = c("linear", "radial")
+)
+
+# Initialize variables for best parameters and RMSE
+best_params <- NULL
+best_rmse <- Inf
+rmse_comb <- c()
+
+# Perform grid search with k-fold cross-validation
+k <- 10  # Number of folds
+
+for (i in 1:nrow(parameterGrid)) {
+  # Initialize variable for average RMSE across folds
+  avg_rmse <- 0
+  
+  for (fold in 1:k) {
+    # Create training and testing indices for the current fold
+    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
+    train_indices <- unlist(indices[-fold])
+    test_indices <- indices[[fold]]
+    
+    # Split data into training and testing sets for the current fold
+    train_data <- df_model[train_indices, ]
+    test_data <- df_model[test_indices, ]
+    
+    # Fit the model with current parameter combination
+    svm_model <- svm(Rating ~ ., data = train_data,
+                     kernel = parameterGrid$.kernel[i])
+    
+    # Generate predictions for the testing set
+    svm_pred <- predict(svm_model, newdata = test_data)
+    
+    # Calculate RMSE for the current fold
+    fold_rmse <- sqrt(mean((test_data$Rating - svm_pred)^2))
+    
+    # Accumulate RMSE across folds
+    avg_rmse <- avg_rmse + fold_rmse
+  }
+  
+  # Calculate average RMSE across folds
+  avg_rmse <- avg_rmse / k
+  rmse_comb[i] <- avg_rmse
+  
+  # Check if current parameter combination is the best
+  if (avg_rmse < best_rmse) {
+    best_params <- parameterGrid[i, ]
+    best_rmse <- avg_rmse
+  }
+}
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(best_params)
+cat("RMSE:", best_rmse)
+
+
+# Fit the model with current parameter combination
+svm_model <- svm(Rating ~ ., data = df_model,
+                 n.trees = 50,
+                 interaction.depth = 3,
+                 shrinkage = 0.1)
+
+# Generate predictions for the testing set
+svm_pred <- predict(svm_model, newdata = df_model, n.trees = 50)
+
+temp<-summary.svm(svm_model)
+plot(temp$rel.inf)
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = df_model$Rating,
+                 Predicted = svm_pred)
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x =Predicted , y = Actual)) +
+  geom_point() +
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  xlim(0,5)+
+  abline(01)
+
+standard_error <- sd(df$Actual-df$Predicted)
+
+# Predict for new charging stations
+prediction_new<- predict(svm_model, newdata = potential_CS, n.trees = 50)
+
+critical_value <- 1.96
+lower_bound <- prediction_new - critical_value * standard_error
+upper_bound <- prediction_new + critical_value * standard_error
+confidence_interval <- c(lower_bound, upper_bound)
+
+final_SVM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+
 ###### XGB - Model and estimation####
 
