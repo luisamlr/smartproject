@@ -174,6 +174,7 @@ library(gbm)
 library(caret)
 set.seed(123)
 
+##### Model tuning GMB######
 # Define the parameter grid with corrected column names
 parameter_grid <- expand.grid(n.trees = c( 50, 75, 100, 125, 150),
                               interaction.depth = c(1, 2, 3, 4),
@@ -203,9 +204,6 @@ cat("Best Parameters:\n")
 print(gbm_model$bestTune)
 cat("RMSE on training set:", rmse)
 
-# Calculate the correlation
-correlation <- cor(df_model$Rating, gbm_pred)
-
 library(ggplot2)
 
 # Create a data frame with the actual and predicted ratings
@@ -228,8 +226,16 @@ standard_error <- sd(residuals)
 # Generate predictions
 gbm_pred <- predict(gbm_model, newdata = potential_CS, n.trees = 100)
 
-
+###### Model and estimation#####
 library(caret)
+# Replace 'df_model' with the actual data frame name
+new_df <- df_model[, -which(names(df_model) == "Rating")]
+
+
+# Perform PCA and store the result in 'pca_result'
+pca_result <- prcomp(new_df)
+library(factoextra)
+fviz_eig(pca_result)
 
 # Define the parameter grid
 parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
@@ -298,7 +304,8 @@ gbm_model <- gbm(Rating ~ ., data = df_model,
 # Generate predictions for the testing set
 gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = 50)
 
-
+temp<-summary.gbm(gbm_model)
+plot(temp$rel.inf)
 library(ggplot2)
 
 
@@ -310,23 +317,28 @@ df <- data.frame(Actual = df_model$Rating,
 correlation <- cor(df$Actual, df$Predicted)
 
 # Create the scatter plot
-ggplot(df, aes(x = Actual, y = Predicted)) +
+ggplot(df, aes(x =Predicted , y = Actual)) +
   geom_point() +
-  xlab("Actual Ratings") +
-  ylab("Predicted Ratings") +
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
-  ylim(0,5)
+  xlim(0,5)+
+  abline(01)
 
 
 standard_error <- sd(df$Actual-df$Predicted)
 
+# Predict for new charging stations
+prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 50)
+
+
 critical_value <- 1.96
-lower_bound <- gbm_pred - critical_value * standard_error
-upper_bound <- gbm_pred + critical_value * standard_error
+lower_bound <- prediction_new - critical_value * standard_error
+upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
 
-final<-cbind(potential_CS, Prediction = gbm_pred, lower_bound, upper_bound)
+final<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
 
 library(writexl)
 # Export data frame to an Excel file
