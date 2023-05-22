@@ -1,5 +1,6 @@
 # Load required library for plotting
 library(ggplot2)
+library(ranger)
 library(readxl)
 library(randomForest)
 library(caret)
@@ -7,10 +8,11 @@ library(xgboost)
 library(rstanarm)
 library(nnet)
 library(readxl)
+library(writexl)
 library(e1071)
 library(gbm)
+set.seed(42)  # Set seed for reproducibility
 
-set.seed(123)
 # Import dataset
 df_model <- read_excel("reshaped_poi_locations.xlsx")
 
@@ -92,7 +94,7 @@ print(paste("GBM Train RMSE:", avg_gbm_rmse_train))
 print(paste("GBM Test RMSE:", avg_gbm_rmse_test))
 
 
-##### Model #### 
+##### Model  DATA preparation#### 
 library(ranger)
 
 # Import dataset
@@ -100,8 +102,6 @@ df_model <- read_excel("reshaped_poi_locations.xlsx")
 potential_CS <- read_excel("potential_CS.xlsx")
 
 #Remove column weijkenwurten
-
-
 add_missing_columns <- function(df1, df2) {
   missing_cols_df1 <- setdiff(names(df2), names(df1))
   missing_cols_df2 <- setdiff(names(df1), names(df2))
@@ -132,111 +132,9 @@ rf_model <- randomForest(formula = Rating ~ ., data = df_model)
 lm_model <-lm(formula = Rating ~ ., data = df_model)
 gbm_model <- gbm(Rating ~ ., data = df_model, n.trees = 100, interaction.depth = 3, shrinkage = 0.1)
 
-# Improve the model:
-library(gbm)
-library(caret)
-
-# Define the parameter grid
-parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
-                              interaction.depth = c(2, 3, 4),
-                              shrinkage = c(0.1, 0.2, 0.3))
-
-# Initialize variables for best parameters and RMSE
-best_params <- NULL
-best_rmse <- Inf
-
-# Perform grid search
-for (i in 1:nrow(parameter_grid)) {
-  # Fit the model with current parameter combination
-  gbm_model <- gbm(Rating ~ ., data = df_model,
-                   n.trees = parameter_grid$n.trees[i],
-                   interaction.depth = parameter_grid$interaction.depth[i],
-                   shrinkage = parameter_grid$shrinkage[i])
-  
-  # Generate predictions
-  gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = parameter_grid$n.trees[i])
-  
-  # Calculate RMSE
-  rmse <- sqrt(mean((df_model$Rating - gbm_pred)^2))
-  
-  # Check if current parameter combination is the best
-  if (rmse < best_rmse) {
-    best_params <- parameter_grid[i, ]
-    best_rmse <- rmse
-  }
-}
-
-# Print the best parameter combination and RMSE
-cat("Best Parameters:\n")
-print(best_params)
-cat("RMSE:", best_rmse)
-library(gbm)
-library(caret)
-set.seed(123)
-
-##### Model tuning GMB######
-# Define the parameter grid with corrected column names
-parameter_grid <- expand.grid(n.trees = c( 50, 75, 100, 125, 150),
-                              interaction.depth = c(1, 2, 3, 4),
-                              shrinkage = c(0.1, 0.2, 0.3),
-                              n.minobsinnode = 10)
-
-# Set up cross-validation
-ctrl <- trainControl(method = "cv", number = 5)  # 5-fold cross-validation
-
-# Perform grid search and cross-validation
-gbm_model <- train(Rating ~ ., data = df_model,
-                   method = "gbm",
-                   trControl = ctrl,
-                   tuneGrid = parameter_grid)
-
-# Get the best model
-best_model <- gbm_model$finalModel
-
-# Generate predictions on the training set
-gbm_pred <- predict(best_model, newdata = df_model, n.trees = best_model$n.trees)
-
-# Calculate RMSE on the training set
-rmse <- sqrt(mean((df_model$Rating - gbm_pred)^2))
-
-# Print the best parameters and RMSE
-cat("Best Parameters:\n")
-print(gbm_model$bestTune)
-cat("RMSE on training set:", rmse)
-
-library(ggplot2)
-
-# Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = df_model$Rating,
-                 Predicted = gbm_pred)
-
-# Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
-
-# Create the scatter plot
-ggplot(df, aes(x = Actual, y = Predicted)) +
-  geom_point() +
-  xlab("Actual Ratings") +
-  ylab("Predicted Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
-  ylim(0,5)
 
 
-standard_error <- sd(residuals)
-# Generate predictions
-gbm_pred <- predict(gbm_model, newdata = potential_CS, n.trees = 100)
-
-###### Model and estimation#####
-library(caret)
-# Replace 'df_model' with the actual data frame name
-new_df <- df_model[, -which(names(df_model) == "Rating")]
-
-
-# Perform PCA and store the result in 'pca_result'
-pca_result <- prcomp(new_df)
-library(factoextra)
-fviz_eig(pca_result)
-
+###### GBM - Model and estimation#####
 # Define the parameter grid
 parameter_grid <- expand.grid(n.trees = c(50, 100, 150),
                               interaction.depth = c(2, 3, 4),
@@ -248,7 +146,7 @@ best_rmse <- Inf
 
 # Perform grid search with k-fold cross-validation
 k <- 10  # Number of folds
-set.seed(42)  # Set seed for reproducibility
+
 
 for (i in 1:nrow(parameter_grid)) {
   # Initialize variable for average RMSE across folds
@@ -325,21 +223,23 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   xlim(0,5)+
   abline(01)
 
-
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
 prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 50)
-
 
 critical_value <- 1.96
 lower_bound <- prediction_new - critical_value * standard_error
 upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
-
 final<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
 
-library(writexl)
 # Export data frame to an Excel file
 write_xlsx(final, "potential_CS_final.xlsx") 
+
+
+###### RF - Model and estimation####
+###### SVM - Model and estimation####
+###### XGB - Model and estimation####
+

@@ -144,7 +144,6 @@ for (i in 1:nrow(df_all)) {
 # Merging with previous information
 df_cs<-cbind(df_cs, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
 
-
 ##### Whole sample analysis #####
 hist(df_cs$n_rating , xlab = "Rating Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Ratings Closest Station")
 hist(df_cs$avg3 , xlab = "Avg. Rating 3 Closest Station", ylab = "Frequency", breaks = seq(0, 5), col = "steelblue", main = "Distribution of Avg. Rating 3 Closest Station")
@@ -283,6 +282,16 @@ library(dplyr)
 
 # Replace "path/to/file" with the file path and name you want to save your Excel file to
 write.xlsx(df_cs, "data_variables_roger.xlsx", rowNames = FALSE)
+
+
+
+
+
+
+
+
+
+
 
 ##### Compute new variables for potential parking spots####
 library(dplyr)
