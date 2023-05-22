@@ -47,3 +47,7 @@ data_pre <- data_pre %>%
   summarize_all(mean, na.rm = TRUE)
 
 data_pre$StringValue <- as.numeric(data_pre$StringValue)
+
+library(writexl)
+# Export data frame to an Excel file
+write_xlsx(final, "CBS.xlsx") 
