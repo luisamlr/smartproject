@@ -240,6 +240,103 @@ final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bo
 
 
 ###### RF - Model and estimation####
+
+# Define the parameter grid
+parameter_grid <- expand.grid(num.trees = c(50, 100, 150),
+                              max.depth = c(2, 3, 4))
+
+# Initialize variables for best parameters and RMSE
+best_params <- NULL
+best_rmse <- Inf
+
+# Perform grid search with k-fold cross-validation
+k <- 10  # Number of folds
+set.seed(42)  # Set seed for reproducibility
+
+for (i in 1:nrow(parameter_grid)) {
+  # Initialize variable for average RMSE across folds
+  avg_rmse <- 0
+  
+  for (fold in 1:k) {
+    # Create training and testing indices for the current fold
+    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
+    train_indices <- unlist(indices[-fold])
+    test_indices <- indices[[fold]]
+    
+    # Split data into training and testing sets for the current fold
+    train_data <- df_model[train_indices, ]
+    test_data <- df_model[test_indices, ]
+    
+    # Fit the model with current parameter combination
+    ranger_model <- ranger(Rating ~ ., data = train_data, num.trees = parameter_grid$num.trees[i],
+                           max.depth = parameter_grid$max.depth[i])
+    
+    # Generate predictions for the testing set
+    ranger_pred <- predict(ranger_model, data = test_data)$predictions
+    
+    # Calculate RMSE for the current fold
+    fold_rmse <- sqrt(mean((test_data$Rating - ranger_pred)^2))
+    
+    # Accumulate RMSE across folds
+    avg_rmse <- avg_rmse + fold_rmse
+  }
+  
+  # Calculate average RMSE across folds
+  avg_rmse <- avg_rmse / k
+  
+  # Check if current parameter combination is the best
+  if (avg_rmse < best_rmse) {
+    best_params <- parameter_grid[i, ]
+    best_rmse <- avg_rmse
+  }
+}
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(best_params)
+cat("RMSE:", best_rmse)
+
+# Fit the model with current parameter combination
+ranger_model <- ranger(Rating ~ ., data = df_model,
+                    num.trees = 150,
+                    max.depth = 3)
+
+# Generate predictions for the testing set
+ranger_pred <- predict(ranger_model, data = df_model)$predictions
+
+# Variable importance
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = df_model$Rating,
+                 Predicted = ranger_pred)
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x =Predicted , y = Actual)) +
+  geom_point() +
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  xlim(0,5)
+
+standard_error <- sd(df$Actual-df$Predicted)
+
+# Predict for new charging stations
+prediction_new<- predict(ranger_model, newdata = potential_CS, n.trees = 50)
+
+critical_value <- 1.96
+lower_bound <- prediction_new - critical_value * standard_error
+upper_bound <- prediction_new + critical_value * standard_error
+confidence_interval <- c(lower_bound, upper_bound)
+
+final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+
+# Export data frame to an Excel file
+# write_xlsx(final, "potential_CS_final.xlsx") 
+
+
 ###### SVM - Model and estimation####
 # Define the parameter grid
 parameterGrid <- expand.grid(
