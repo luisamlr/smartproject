@@ -135,9 +135,9 @@ gbm_model <- gbm(Rating ~ ., data = df_model, n.trees = 100, interaction.depth =
 
 ###### GBM - Model and estimation#####
 # Define the parameter grid
-parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150, 175, 200),
-                              interaction.depth = c(2, 3, 4, 5, 6, 7),
-                              shrinkage = c(0.1, 0.2, 0.3, 0.4, 0.5))
+parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
+                              interaction.depth = c(2, 3, 4),
+                              shrinkage = c(0.1, 0.2, 0.3))
 
 # Initialize variables for best parameters and RMSE
 best_params <- NULL
@@ -193,14 +193,34 @@ cat("Best Parameters:\n")
 print(best_params)
 cat("RMSE:", best_rmse)
 
+library(caret)
+
+# Define the parameter grid
+parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
+                              interaction.depth = c(2, 3, 4),
+                              shrinkage = c(0.1, 0.2, 0.3))
+
+# Define the control parameters for cross-validation
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Perform grid search with cross-validation using caret
+gbm_model <- train(Rating ~ ., data = df_model, method = "gbm",
+                   trControl = ctrl, tuneGrid = parameter_grid)
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(gbm_model$bestTune)
+cat("RMSE:", gbm_model$results$RMSE[gbm_model$bestIter])
+
 # Fit the model with current parameter combination
 gbm_model <- gbm(Rating ~ ., data = df_model,
-                 n.trees = 50,
+                 n.trees = 25,
                  interaction.depth = 3,
                  shrinkage = 0.1)
 
 # Generate predictions for the testing set
 gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = 50)
+a<- sqrt(mean((df_model$Rating - gbm_pred)^2))
 
 temp<-summary.gbm(gbm_model)
 plot(temp$rel.inf)
