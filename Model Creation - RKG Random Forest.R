@@ -15,116 +15,69 @@ splitIndex <- createDataPartition(df$Rating, p = .8,
 trainData <- df[ splitIndex,]
 testData  <- df[-splitIndex,]
 
-# Build the model using the training data
-rf_model <- ranger(Rating ~ ., data = trainData, importance = "permutation")
+# Define the parameter grid
+num.trees <- c(100, 200, 300)
+min.node.size <- c(1, 5, 10)
+sample.fraction <- c(0.5, 0.75, 1)
 
-# Extract the variable importance
-importance <- rf_model$variable.importance
+# Create 5-fold cross-validation indices
+folds <- createFolds(trainData$Rating, k = 5)
 
-# Create a 5-fold cross-validation scheme
-cv_scheme <- createFolds(trainData$Rating, k = 5)
+# Initialize a list to store the models and their RMSEs
+models <- list()
+model_rmse <- numeric(length(num.trees) * length(min.node.size) * length(sample.fraction) * length(folds))
 
-# Initialize variables to store the results
-cv_results <- data.frame(n_features = integer(), mean_rmse = numeric())
+# Counter to keep track of the model
+counter <- 1
 
-# Random Forest model calculation
-
-# Want to find to iterate all variables (takes around 40 min) or calculate the full model (ITERATE/FULL)
-model_cal <- "ITERATE"
-
-if (model_cal == "ITERATE") {
-  
-  # Loop through different numbers of features
-  for (n_features in 1:length(importance)) {
-    
-    # Identify the names of the top features
-    top_features <- names(importance)[order(importance, decreasing = TRUE)][1:n_features]
-    
-    # Create a dataset with only the selected features
-    train_data_selected <- trainData[, c(top_features, "Rating")]
-    
-    # Initialize a variable to store the RMSE values for each fold
-    fold_rmse <- numeric()
-    
-    # Perform cross-validation for the current feature subset
-    for (i in 1:length(cv_scheme)) {
-      train_fold <- train_data_selected[-cv_scheme[[i]], ]
-      test_fold <- train_data_selected[cv_scheme[[i]], ]
+# Iterate over the parameter grid
+for (trees in num.trees) {
+  for (node.size in min.node.size) {
+    for (fraction in sample.fraction) {
       
-      # Train the model with the current feature subset
-      rf_model_selected <- ranger(Rating ~ ., data = train_fold)
-      
-      # Make predictions for the test fold
-      predictions_selected <- predict(rf_model_selected, data = test_fold)$predictions
-      
-      # Calculate the RMSE for the test fold
-      fold_rmse[i] <- sqrt(mean((test_fold$Rating - predictions_selected)^2))
+      # Perform 5-fold cross-validation
+      for(i in seq_along(folds)){
+        # Segregate the data into training and validation sets
+        validationData <- trainData[folds[[i]], ]
+        crossTrainData <- trainData[-folds[[i]], ]
+        
+        # Train the model with all features
+        rf_model <- ranger(Rating ~ ., data = crossTrainData, num.trees = trees, 
+                           min.node.size = node.size, sample.fraction = fraction)
+        
+        # Make predictions for the validation set
+        predictions <- predict(rf_model, data = validationData)$predictions
+        
+        # Calculate the RMSE for the validation set
+        rmse <- sqrt(mean((validationData$Rating - predictions)^2))
+        
+        # Store the model and its RMSE
+        models[[counter]] <- rf_model
+        model_rmse[counter] <- rmse
+        
+        # Update the counter
+        counter <- counter + 1
+      }
     }
-    
-    # Calculate the mean RMSE across all folds
-    mean_rmse <- mean(fold_rmse)
-    
-    # Store the results
-    cv_results <- rbind(cv_results, data.frame(n_features = n_features, mean_rmse = mean_rmse))
-    
-    print(paste0("Iteration number ",n_features,"/",length(importance)))
   }
-  
-  # Find the best number of features based on the lowest mean RMSE
-  best_n_features <- cv_results[which.min(cv_results$mean_rmse), "n_features"]
-  cat("Best number of features:", best_n_features)
-  
-  # Select the best features names.
-  best_top_features <- names(importance)[order(importance, decreasing = TRUE)][1:best_n_features]
-  best_top_features
-  
-  # Select only the variables from the best top features.
-  train_data_selected <- trainData[, c(best_top_features, "Rating")]
-  
-} else {
-  # Initialize a variable to store the RMSE values for each fold
-  fold_rmse_full <- numeric()
-  
-  # Perform cross-validation for the full model
-  for (i in 1:length(cv_scheme)) {
-    train_fold_full <- trainData[-cv_scheme[[i]], ]
-    test_fold_full <- trainData[cv_scheme[[i]], ]
-    
-    # Train the model with all features
-    rf_model_full <- ranger(Rating ~ ., data = train_fold_full)
-    
-    # Make predictions for the test fold
-    predictions_full <- predict(rf_model_full, data = test_fold_full)$predictions
-    
-    # Calculate the RMSE for the test fold
-    fold_rmse_full[i] <- sqrt(mean((test_fold_full$Rating - predictions_full)^2))
-  }
-  
-  # Calculate the mean RMSE across all folds for the full model
-  mean_rmse_full <- mean(fold_rmse_full)
-  cat("Mean RMSE for the full model:", mean_rmse_full)
-  
-  # Use all features for the final model
-  best_top_features <- colnames(trainData[, -ncol(trainData)]) # Exclude the "Rating" column
-  train_data_selected <- trainData
 }
 
+# Find the model with the lowest average RMSE across the 5 folds
+best_model_index <- which.min(model_rmse)
+best_model <- models[[best_model_index]]
 
-# 
-final_rf_model <- ranger(Rating ~ ., data = train_data_selected)
+print(paste("Best model RMSE: ", model_rmse[best_model_index]))
 
-test_data_selected <- test_data[, best_top_features]
+# Make predictions on the test data using the best model
+test_predictions <- predict(best_model, data = testData)$predictions
 
-predictions <- predict(final_rf_model, data = test_data_selected)$predictions
+# Calculate the RMSE for the test data
+test_rmse <- sqrt(mean((testData$Rating - test_predictions)^2))
+
+# Print the test RMSE
+print(paste("Test RMSE: ", test_rmse))
+
+# Add the predictions as a new column to the test data
+testData$Predictions <- predict(best_model, data = testData)$predictions
 
 
-
-
-
-
-
-# SVM
-
-final_svm_model <- svm(Rating ~ ., data = train_data)
-test_data_selected_svm <- test_data[, best_top_features_svm]
-predictions_svm <- predict(final_svm_model, newdata = test_data_selected_svm)
