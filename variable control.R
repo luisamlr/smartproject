@@ -24,10 +24,9 @@ name_match = match(names(reshaped_poi_locations), lookup$Old_names)
 names(reshaped_poi_locations)[na.omit(name_match)] = lookup$New_names[!is.na(name_match)]
 
 
-## Step 3: Cleaning of data
+#### Step 3: Cleaning of data
 
-#discard variables that we deem irrelevant/if we are unable to explain them or are unsure about their meanings
-
+# Discard variables that we deem irrelevant/if we are unable to explain them or are unsure about their meanings
 new_columnnames <- colnames(reshaped_poi_locations) # create a vector to look at leftover columnnames
 columns_to_remove <- c("Fac_afro", "Fac_aq", "Fac_awards", "Fac_bell", 
                        "Fac_disused", "Fac_flo", "Fac_general", "Fac_grinding", 
@@ -37,7 +36,7 @@ columns_to_remove <- c("Fac_afro", "Fac_aq", "Fac_awards", "Fac_bell",
                        "Fac_voucher", "Fac_webshop", "Fac_yes")
 reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locations) %in% columns_to_remove)] # Remove the specified columns from the dataframe
 
-# First Iteration of Aggregations: combine those columns that we know mean the same thing
+### First Iteration of Aggregations: combine those columns that we know mean the same thing
 reshaped_poi_locations$Fac_art_gallery<-reshaped_poi_locations$Fac_art_gallery+reshaped_poi_locations$Fac_artgallery;reshaped_poi_locations$Fac_artgallery<-NULL
 reshaped_poi_locations$Fac_audiologist<-reshaped_poi_locations$Fac_audiologist+reshaped_poi_locations$Fac_audicien;reshaped_poi_locations$Fac_audicien<-NULL
 reshaped_poi_locations$Fac_baby<-reshaped_poi_locations$Fac_baby+reshaped_poi_locations$Fac_baby_goods;reshaped_poi_locations$Fac_baby_goods<-NULL
@@ -57,7 +56,7 @@ reshaped_poi_locations$Fac_coffee_tea<-reshaped_poi_locations$Fac_coffee_tea+res
 reshaped_poi_locations$Fac_coffeeshop<-reshaped_poi_locations$Fac_coffeeshop+reshaped_poi_locations$Fac_coffee_shop;reshaped_poi_locations$Fac_coffee_shop<-NULL
 reshaped_poi_locations$Fac_conference_centre<-reshaped_poi_locations$Fac_conference_centre+reshaped_poi_locations$Fac_conference_center;reshaped_poi_locations$Fac_conference_center<-NULL
 reshaped_poi_locations$Fac_crafts<-reshaped_poi_locations$Fac_crafts+reshaped_poi_locations$Fac_craft;reshaped_poi_locations$Fac_craft<-NULL
-reshaped_poi_locations$Fac_diy_workshops<-reshaped_poi_locations$Fac_diy_workshops+reshaped_poi_locations$Fac_doityourself;reshaped_poi_locations$Fac_doityourself<-NULL
+reshaped_poi_locations$Fac_doityourself_hardware<-reshaped_poi_locations$Fac_doityourself_hardware+reshaped_poi_locations$Fac_doityourself;reshaped_poi_locations$Fac_doityourself<-NULL
 reshaped_poi_locations$Fac_doors_glaziery<-reshaped_poi_locations$Fac_doors_glaziery+reshaped_poi_locations$Fac_doors+reshaped_poi_locations$Fac_deuren+reshaped_poi_locations$Fac_glaziery;reshaped_poi_locations$Fac_doors<-NULL;reshaped_poi_locations$Fac_deuren<-NULL;reshaped_poi_locations$Fac_glaziery<-NULL
 reshaped_poi_locations$Fac_drugs_paraphernalia<-reshaped_poi_locations$Fac_drugs_paraphernalia+reshaped_poi_locations$Fac_drugs+reshaped_poi_locations$Fac_drug_paraphernalia;reshaped_poi_locations$Fac_drugs<-NULL;reshaped_poi_locations$Fac_drug_paraphernalia<-NULL
 reshaped_poi_locations$Fac_dry_cleaning<-reshaped_poi_locations$Fac_dry_cleaning+reshaped_poi_locations$Fac_dry_cleaning_general+reshaped_poi_locations$Fac_dry_cleaning_tailor;reshaped_poi_locations$Fac_dry_cleaning_general<-NULL;reshaped_poi_locations$Fac_dry_cleaning_tailor<-NULL
@@ -74,55 +73,106 @@ reshaped_poi_locations$Fac_sunglasses<-reshaped_poi_locations$Fac_sunglasses+res
 reshaped_poi_locations$Fac_swimming_area<-reshaped_poi_locations$Fac_swimming_area+reshaped_poi_locations$Fac_swiming_area+reshaped_poi_locations$Fac_swimming_pool+reshaped_poi_locations$Fac_bathing_place;reshaped_poi_locations$Fac_swiming<-NULL;reshaped_poi_locations$Fac_swimming_pool<-NULL;reshaped_poi_locations$Fac_bathing_place<-NULL
 reshaped_poi_locations$Fac_watches<-reshaped_poi_locations$Fac_watches+reshaped_poi_locations$Fac_watch;reshaped_poi_locations$Fac_watch<-NULL
 
-# Second Iteration of Aggregations: combine into categories (OPTIONAL - this section could be commented out)
+### Second Iteration of Aggregations: combine into categories (OPTIONAL - this section could be commented out)
+## Define assortments of variables
 
-# family
+# 1: family
 Fac_family_establishments <- c("Fac_animal_boarding","Fac_animal_training","Fac_baby","Fac_baby_hatch","Fac_basis_school","Fac_childcare","Fac_animal_ambulance","Fac_dog_grooming","Fac_dog_park","Fac_dog_toilet","Fac_indoor_play","Fac_kids_area","Fac_kindergarten","Fac_maternity_care","Fac_natal_care","Fac_obstetrician","Fac_pet","Fac_pet_grooming","Fac_playground","Fac_pregnancy","Fac_rescue_station",
-                            "Fac_scout_camp","Fac_scout_hall","Fac_scout_hut","Fac_shelter","Fac_toys","Fac_toys_gift_watches","Fac_obstetrician","Fac_veterinary")
-# gym
+                               "Fac_scout_camp","Fac_scout_hall","Fac_scout_hut","Fac_shelter","Fac_toys","Fac_toys_gift_watches","Fac_obstetrician","Fac_veterinary")
+# 2: gym
 Fac_fitness <- c("Fac_bodytec","Fac_fitness_centre","Fac_fitness_station","Fac_gym","Fac_sport_centre","Fac_sports_centre","Fac_sports_hall")
-# sport
+# 3: sport
 Fac_sporting <- c("Fac_sports","Fac_club","Fac_clubhouse","Fac_dance","Fac_dancing_school","Fac_dojo","Fac_hockey","Fac_sport","Fac_tennis","Fac_training","Fac_trampoline_park","Fac_water_sports","Fac_yoga","Fac_yoga_studio")
-# hospitality
+# 4: hospitality
 Fac_hospitality <- c("Fac_bakery","Fac_bar","Fac_bbq","Fac_beergarden","Fac_brewery","Fac_cafe","Fac_cafe_guest_house","Fac_canteen","Fac_catering","Fac_coffee_tea","Fac_confectionery","Fac_cookery","Fac_fast_food","Fac_food","Fac_food_court","Fac_ice_cream","Fac_internet_cafe","Fac_juice","Fac_juice_bar","Fac_jukebox","Fac_karaoke_box","Fac_restaurant","Fac_seafood","Fac_vending_machine")
-# organic/green living
+# 5: organic/green living
 Fac_organic <- c("Fac_bakery_greengrocer","Fac_butcher_greengrocer","Fac_clothes_second_hand","Fac_fairtrade","Fac_greengrocer","Fac_health_food","Fac_zero_waste_lifestyle")
-# convention centres
+# 6: convention centres
 Fac_convention_centres <- c("Fac_art","Fac_art_gallery","Fac_arts_centre","Fac_concert_hall","Fac_conference_centre","Fac_events","Fac_exhibition_centre")
-# recreational establishments # includes vacation stuff
+# 7: recreational establishments # includes vacation stuff
 Fac_recreational_establishments <- c("Fac_amusement_arcade","Fac_bait","Fac_beach_resort","Fac_bowling_alley","Fac_camping","Fac_candles","Fac_cinema","Fac_comics","Fac_cooking","Fac_cooking_workshop","Fac_costume","Fac_escape_game","Fac_games","Fac_hobby","Fac_hoop","Fac_hunting_stand","Fac_ice_rink","Fac_luggage_locker","Fac_massage","Fac_meditation_centre","Fac_miniature_golf","Fac_movie_rental","Fac_music",
                                      "Fac_music_venue","Fac_party","Fac_photo","Fac_photo_booth","Fac_photography","Fac_piano","Fac_pitch","Fac_reception_desk","Fac_resort","Fac_resthouse","Fac_road_travel","Fac_swimming_area","Fac_theatre","Fac_ticket","Fac_ticket_validator","Fac_tourism","Fac_tourist","Fac_travel_agency","Fac_travel_goods","Fac_travel_supplies","Fac_video","Fac_video_games","Fac_water_park")
-# financial establishments/banking
+# 8: financial establishments/banking
 Fac_financial_establishments <- c("Fac_bank","Fac_bitcoin","Fac_currency_exchange","Fac_financial_advice","Fac_money_lender","Fac_money_transfer","Fac_mortgage","Fac_mortgage_bank","Fac_mortgage_broker","Fac_pawnbroker","Fac_payment_terminal")
-# clothing
+# 9: clothing
 Fac_clothing <- c("Fac_accessories","Fac_bag","Fac_boutique","Fac_clothes","Fac_clothes_gift","Fac_clothes_repair","Fac_clothes_interior_decoration","Fac_clothing_rental","Fac_cloths","Fac_concepts","Fac_conceptstore","Fac_dressing_room","Fac_dry_cleaning","Fac_fashion","Fac_fashion_accessories","Fac_hat","Fac_jeweler","Fac_jewelry","Fac_second_hand","Fac_thrift_store","Fac_vintage")
-# home furnishing; construction/property management
+# 10: home furnishing; construction/property management
 Fac_home_furnishing <- c("Fac_appliance","Fac_bathroom_furnishing","Fac_bed","Fac_bed_curtain_fabric","Fac_bedding","Fac_blinds","Fac_carpet","Fac_carpet_furniture","Fac_curtain","Fac_curtain_paint","Fac_doorknobs","Fac_doors_glaziery","Fac_fixme","Fac_furniture","Fac_garden","Fac_garden_centre","Fac_garden_furniture","Fac_household","Fac_household_goods","Fac_household_linen","Fac_houseware",
                          "Fac_houseware_gift","Fac_interior_decoration","Fac_kitchen","Fac_kitchen_bathroom_furnishing","Fac_kitchen_equipment","Fac_kitchenware","Fac_lamps","Fac_laundry","Fac_lighting","Fac_lounger","Fac_paint","Fac_plumbing","Fac_tiles","Fac_vacuum_cleaner","Fac_wallpaper","Fac_washing_machine","Fac_white_goods","Fac_window_blind","Fac_window_blind_curtain",
                          "Fac_building_materials","Fac_building_supplies","Fac_construction","Fac_electrical","Fac_energy","Fac_estate_agent","Fac_floor","Fac_flooring","Fac_floors","Fac_forklift","Fac_glaziery","Fac_groundskeeping","Fac_heating","Fac_power_supply","Fac_sun_control","Fac_tool_hire","Fac_wood","Fac_wool")
-# luxury goods,sports and establishments; arts and collectibles; boating
+# 11: luxury goods,sports and establishments; arts and collectibles; boating
 Fac_luxury_sports_goods <- c("Fac_angling","Fac_angling_club","Fac_equestrian","Fac_fishing","Fac_golf","Fac_horse","Fac_horse_riding","Fac_antiques","Fac_auction","Fac_auction_house","Fac_collector","Fac_gold","Fac_gold_buyer","Fac_goldsmith","Fac_medal","Fac_boat","Fac_boat_rental","Fac_boat_storage","Fac_chandler","Fac_harbourmaster","Fac_marina","Fac_maritime","Fac_pedalo","Fac_sailing_school","Fac_scuba_diving","Fac_ship_chandler","Fac_slipway")
-# diy/workshops
+# 12: diy/workshops
 Fac_diy_workshops <- c("Fac_3d_printing","Fac_art_supplies","Fac_knitting_crocheting","Fac_crafts","Fac_design","Fac_doityourself_hardware","Fac_fablab","Fac_fabric","Fac_frame","Fac_fur","Fac_haberdashery","Fac_hackerspace","Fac_handicraft","Fac_hardware","Fac_knitting_school","Fac_leather","Fac_pottery","Fac_sewing","Fac_tailor","Fac_tailor_dry_cleaning","Fac_textile","Fac_textile_printing","Fac_workshop")
-# (other) retail establishments; convenience stores; cosmetics
+# 13: (other) retail establishments; convenience stores; cosmetics
 Fac_retail_establishments <- c("Fac_board_games","Fac_books","Fac_brewing_supplies","Fac_chemist","Fac_christmas","Fac_clock","Fac_clocks","Fac_cookware","Fac_country_store","Fac_crystal","Fac_department_store","Fac_fireworks","Fac_florist","Fac_flower_arranging","Fac_mall","Fac_merch","Fac_musical_instrument","Fac_newsagent","Fac_plants","Fac_pyrotechnics","Fac_seeds","Fac_shoe_repair_cleaning","Fac_shoelaces_shop",
                                "Fac_shoes","Fac_soap","Fac_spiritual","Fac_stationery","Fac_sun_glasses","Fac_sun_shade","Fac_sunglasses","Fac_sunscreens","Fac_surfboards","Fac_watches","Fac_convenience","Fac_kiosk","Fac_variety_store","Fac_gift","Fac_give_box")
-# electronics
+# 14: electronics
 Fac_electronics_appliances <- c("Fac_business_machines","Fac_camera","Fac_communication","Fac_computer","Fac_computer_repair","Fac_electronics","Fac_electronics_repair","Fac_emergency_service","Fac_hifi","Fac_hoover","Fac_mobile_equipment","Fac_mobile_phone","Fac_mobile_phone_repair","Fac_phone","Fac_radiotechnics","Fac_telecommunication","Fac_telephone")
-# cosmetics
+# 15: cosmetics
 Fac_cosmetics_establishments <- c("Fac_accupuncture","Fac_beauty","Fac_beauty_salon","Fac_cosmetics","Fac_hair_extensions","Fac_hairdresser","Fac_hairdresser_supply","Fac_makeup","Fac_nails","Fac_pearcing","Fac_pedicure","Fac_perfumery","Fac_piercing","Fac_sauna","Fac_spa","Fac_tanning","Fac_tanning_salon","Fac_tattoo","Fac_teeth_bleaching","Fac_teeth_whitening","Fac_wellness","Fac_wigs")
-# adult ("alcohol","gambling","erotica")
+# 16: adult ("alcohol","gambling","erotica")
 Fac_adult <- c("Fac_adult_gaming_centre","Fac_alcohol","Fac_bookmaker","Fac_brothel","Fac_cannabis","Fac_casino","Fac_coffeshop","Fac_curiosa","Fac_e_cigarette","Fac_erotic","Fac_growshop","Fac_hemp_products","Fac_hookah_lounge","Fac_lingerie","Fac_lottery","Fac_marihuana","Fac_nightclub","Fac_drugs_paraphernalia","Fac_psychedelics","Fac_pub","Fac_sex","Fac_shisha","Fac_smartshop","Fac_smoking_area","Fac_soft_drugs","Fac_stripclub","Fac_swingerclub",
                "Fac_tobacco","Fac_tobacco_gift","Fac_vapestore","Fac_weapons","Fac_wine")
-# operations # all kinds of offices and operative establishments","storage","rent and repair
+# 17: operations # all kinds of offices and operative establishments","storage","rent and repair
 Fac_operations <- c("Fac_delivery","Fac_printshop","Fac_housing","Fac_ink","Fac_loading_dock","Fac_locksmith","Fac_machinery_rental","Fac_machines","Fac_mail","Fac_meeting_centre","Fac_meeting_room","Fac_meetinglocation","Fac_music_studio","Fac_office","Fac_office_supplies","Fac_printer","Fac_printer_ink","Fac_printing","Fac_prison","Fac_rehearsal_studio","Fac_rental","Fac_repair","Fac_restaurant_supplies","Fac_shop_supplies","Fac_solar_panel",
                     "Fac_stamps","Fac_storage_rental","Fac_studio","Fac_studio_and_meeting","Fac_track","Fac_tractor","Fac_trade","Fac_trailer","Fac_trolley_bay","Fac_valuer","Fac_village_pump","Fac_waiting_room","Fac_warehouse","Fac_weighbridge","Fac_wholesale","Fac_wholesale_seafood","Fac_wholesale_trade")
-# healthcare
+# 18: healthcare
 Fac_healthcare <- c("Fac_audiologist","Fac_blood_bank","Fac_chiropractic","Fac_clinic","Fac_coffin","Fac_crematorium","Fac_dental_hygienist","Fac_dentist","Fac_doctors","Fac_exercise_therapy","Fac_first_aid","Fac_funeral_directors","Fac_funeral_hall","Fac_funeral_home","Fac_health","Fac_healthcare_var","Fac_health_centre","Fac_health_post","Fac_hearing_aids","Fac_herbalist","Fac_hospital","Fac_kinesiologist","Fac_laser_clinic","Fac_medical",
                     "Fac_medical_supply","Fac_mortuary","Fac_nutritionist","Fac_optical_instruments","Fac_optician","Fac_optician_hearing_aids","Fac_orthodontist","Fac_pharmacy","Fac_physical_therapy","Fac_physiotherapist","Fac_place_of_mourning","Fac_podologist_practice","Fac_skin_specialist","Fac_taxidermist")
 
+## Do the categorization using the vectors above
 
-## Step 4: Removing those columns that have occurrences in less than five charging stations
+# Determine all columns after 'Ratings'
+columns_after_ratings <- colnames(df)[(ratings_index + 1):ncol(df)]
+
+# Dplyr to mutate
+reshaped_poi_locations <- reshaped_poi_locations %>%
+  mutate(
+    Fac_family_establishments = rowSums(select(., one_of(Fac_family_establishments))),
+    Fac_fitness = rowSums(select(., one_of(Fac_fitness))),
+    Fac_sporting = rowSums(select(., one_of(Fac_sporting))),
+    Fac_hospitality = rowSums(select(., one_of(Fac_hospitality))),
+    Fac_organic = rowSums(select(., one_of(Fac_organic))),
+    Fac_convention_centres = rowSums(select(., one_of(Fac_convention_centres))),
+    Fac_recreational_establishments = rowSums(select(., one_of(Fac_recreational_establishments))),
+    Fac_financial_establishments = rowSums(select(., one_of(Fac_financial_establishments))),
+    Fac_clothing = rowSums(select(., one_of(Fac_clothing))),
+    Fac_home_furnishing = rowSums(select(., one_of(Fac_home_furnishing))),
+    Fac_luxury_sports_goods = rowSums(select(., one_of(Fac_luxury_sports_goods))),
+    Fac_diy_workshops = rowSums(select(., one_of(Fac_diy_workshops))),
+    Fac_retail_establishments = rowSums(select(., one_of(Fac_retail_establishments))),
+    Fac_electronics_appliances = rowSums(select(., one_of(Fac_electronics_appliances))),
+    Fac_cosmetics_establishments = rowSums(select(., one_of(Fac_cosmetics_establishments))),
+    Fac_adult = rowSums(select(., one_of(Fac_adult))),
+    Fac_operations = rowSums(select(., one_of(Fac_operations))),
+    Fac_healthcare = rowSums(select(., one_of(Fac_healthcare))),
+    Fac_new_collective = rowSums(select(., starts_with("Fac_")[23:ncol(.)]))
+  ) %>%
+  select(
+    coordinateX,
+    coordinateY,
+    Fac_new1,
+    Fac_new2,
+    Fac_new_collective,
+    Ratings,
+    Home,
+    Address,
+    City
+  )
+
+# Get the index of the column 'Ratings'
+ratings_index <- which(colnames(df) == "Ratings")
+
+# Select all columns after 'Ratings'
+columns_after_ratings <- colnames(df)[(ratings_index + 1):ncol(df)]
+
+# Rearrange the columns
+column_order <- c("charger_", "coordinateY", "Fac_sum_1", "Fac_sum_2", columns_after_ratings)
+df <- df[, column_order, drop = FALSE]
+
+
+#### Step 4: Removing those columns that have occurrences in less than five charging stations
 
 #extracting the column names starting with "Fac_"
 fac_columns <- grep("^Fac_", names(reshaped_poi_locations), value = TRUE)
@@ -142,7 +192,7 @@ reshaped_poi_locations <- reshaped_poi_locations %>% select(-all_of(columns_to_r
 
 
 
-## Step 5: aggregation (tbd)
+#### Step 5: aggregation (tbd)
 
 #aggregate variables into categories
 
