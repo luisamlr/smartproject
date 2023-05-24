@@ -19,33 +19,26 @@ set.seed(42)  # Set seed for reproducibility
 df_model <- read_excel("reshaped_poi_locations.xlsx")
 potential_CS <- read_excel("potential_CS.xlsx")
 
-#Remove column weijkenwurten
+# Function to obtain the same amount of columns
 add_missing_columns <- function(df1, df2) {
-  missing_cols_df1 <- setdiff(names(df2), names(df1))
-  missing_cols_df2 <- setdiff(names(df1), names(df2))
-  
-  # Add missing columns to df1 and fill with zeros
-  for (col in missing_cols_df1) {
-    df1[[col]] <- 0
-  }
+  missing_cols_df1 <- setdiff(names(df1), names(df2))  # Find columns in df1 that are missing in df2
   
   # Add missing columns to df2 and fill with zeros
-  for (col in missing_cols_df2) {
+  for (col in missing_cols_df1) {
     df2[[col]] <- 0
   }
+  
+  # Remove columns from df2 that are not present in df1
+  missing_cols_df2 <- setdiff(names(df2), names(df1))  # Find columns in df2 that are missing in df1
+  df2 <- df2[, !names(df2) %in% missing_cols_df2]  # Remove columns from df2
   
   return(list(df1 = df1, df2 = df2))
 }
 
-# Example usage with potential_CS and df_model
-result <- add_missing_columns(potential_CS, df_model)
+# Tranform dataset
+result <- add_missing_columns(df_model, potential_CS)
 potential_CS <- result$df1
-df_model<- result$df2
-
-# Output the modified data frames
-print(potential_CS)
-print(df_model)
-
+df_model <- result$df2
 
 ###### GBM - Model and estimation#####
 # Define the parameter grid
