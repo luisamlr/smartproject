@@ -25,6 +25,13 @@ setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Bus
 # Loading of the data.
 df_cs <- read.csv("All_Chargers.csv") # All chargers location, from Google Maps.
 poi_locations <- read_excel("facilities_around_coordinates.xlsx") # Facilities around chargers, from OpenStreetMap
+#poi_locations$type <- paste0("Fac_",poi_locations$type)
+poi_locations$type1 <- make.names(poi_locations$type)
+poi_locations$type2 <- ifelse(poi_locations$type1 %in% renaming$Old_names,
+                   renaming$New_names[match(poi_locations$type1, renaming$Old_names)],
+                   poi_locations$type1)
+all(poi_locations$type2 %in% renaming$New_names)
+
 demog_data <- read_excel("CBS.xlsx") # Demographic information for every Dutch postal code, From CBS
 parking_maastricht <- read_excel("parking_spots_maastricht.xlsx") # Maastrich parking spots, from Google maps.
 highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway, from Google maps.
@@ -208,6 +215,7 @@ reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locat
 
 # Fixing variable names, to avoid problem with columns names starting with numbers. Cleaning rows with NAs.
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
+?make.names
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
 
 # Before saving the file to be use in model creations steps, is neccesary to remove an
