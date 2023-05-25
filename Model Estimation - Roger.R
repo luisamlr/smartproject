@@ -450,7 +450,7 @@ lower_bound <- prediction_new - critical_value * standard_error
 upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
-final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+final_GBM<-cbind(potential_CS, Prediction = prediction_new, lower_bound, upper_bound)
 
 
 ##### PCA #####
