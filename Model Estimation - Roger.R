@@ -294,16 +294,18 @@ xgb_preds <- predict(xgb_best_model, dtest)
 rmse <- sqrt(mean((testData$Rating - preds)^2))
 print(paste0("Test RMSE: ", rmse))
 
-# Prepare the test data
-testDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
-dtest <- xgb.DMatrix(data = testDataMatrix)
-trainDataxgb <- xgb.DMatrix(data = testDataMatrix)
+# Convert the predictors and targets into matrices
+trainDataMatrix <- as.matrix(df_model[,-which(names(df_model) %in% "Rating")])
+trainLabels <- as.vector(df_model$Rating)
+
+# Convert the data into an xgb.DMatrix object
+dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
 # Generate predictions for the testing set
-xgb_pred <- predict(xgb_preds, data = trainDataxgb)$predictions
+xgb_pred <- predict(xgb_best_model, dtrain)
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = trainData$Rating,
-                 Predicted = ranger_pred)
+df <- data.frame(Actual = df_model$Rating,
+                 Predicted = xgb_pred )
 
 # Calculate the correlation
 correlation <- cor(df$Actual, df$Predicted)
@@ -319,15 +321,136 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
 
 standard_error <- sd(df$Actual-df$Predicted)
 
+trainDataMatrix <- as.matrix(potential_CS[,-which(names(potential_CS) %in% "Rating")])
+dtrain <- xgb.DMatrix(data = trainDataMatrix)
 # Predict for new charging stations
-prediction_new<- predict(ranger_model, newdata = potential_CS)
+prediction_new<- predict(xgb_best_model, newdata = dtrain)
 
 critical_value <- 1.96
 lower_bound <- prediction_new - critical_value * standard_error
 upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
-final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+
+###### Model Ensambling#####
+library(caret)
+library(ranger)
+library(gbm)
+
+# Define the parameter grid
+parameter_grid <- expand.grid(num.trees = c(50, 100, 150),
+                              max.depth = c(2, 3),
+                              mtry = c(2, 3),
+                              n.trees = c( 50, 100, 150),
+                              interaction.depth = c(2, 3),
+                              shrinkage = c(0.1))
+
+# Initialize variables for best parameters and RMSE
+best_params <- NULL
+best_rmse <- Inf
+
+# Perform grid search with k-fold cross-validation
+k <- 5  # Number of folds
+set.seed(42)  # Set seed for reproducibility
+
+for (i in 1:nrow(parameter_grid)) {
+  # Initialize variable for average RMSE across folds
+  avg_rmse <- 0
+  
+  for (fold in 1:k) {
+    # Create training and testing indices for the current fold
+    indices <- createFolds(trainData$Rating, k = k, list = TRUE, returnTrain = TRUE)
+    train_indices <- indices[[fold]]
+    test_indices <- indices[[fold]][-fold]
+    
+    # Split data into training and testing sets for the current fold
+    train_data <- trainData[train_indices, ]
+    test_data <- trainData[test_indices, ]
+    
+    # Fit the ranger model with current parameter combination
+    ranger_model <- ranger(Rating ~ ., data = train_data, num.trees = parameter_grid$num.trees[i],
+                           max.depth = parameter_grid$max.depth[i], mtry = parameter_grid$mtry[i])
+    
+    # Generate predictions for the testing set using ranger
+    ranger_pred <- predict(ranger_model, data = test_data)$predictions
+    
+    # Fit the gbm model with current parameter combination
+    gbm_model <- gbm(Rating ~ ., data = train_data,
+                     n.trees = parameter_grid$n.trees[i],
+                     interaction.depth = parameter_grid$interaction.depth[i],
+                     shrinkage = parameter_grid$shrinkage[i])
+    
+    # Generate predictions for the testing set using gbm
+    gbm_pred <- predict.gbm(gbm_model, newdata = test_data, n.trees = parameter_grid$n.trees[i])
+    
+    # Combine predictions from both models
+    prediction_together <- (ranger_pred + gbm_pred) / 2
+    
+    # Calculate RMSE for the current fold
+    fold_rmse <- sqrt(mean((test_data$Rating - prediction_together)^2))
+    
+    # Accumulate RMSE across folds
+    avg_rmse <- avg_rmse + fold_rmse
+  }
+  
+  # Calculate average RMSE across folds
+  avg_rmse <- avg_rmse / k
+  
+  # Check if current parameter combination is the best
+  if (avg_rmse < best_rmse) {
+    best_params <- parameter_grid[i, ]
+    best_rmse <- avg_rmse
+  }
+}
+
+# Print the best parameter combination and RMSE
+cat("Best Parameters:\n")
+print(best_params)
+cat("RMSE:", best_rmse)
+
+# Model estimation
+ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 100,
+                       max.depth = 3, mtry = 3)
+gbm_model <- gbm(Rating ~ ., data = trainData,
+                 n.trees = 150,
+                 interaction.depth = 3,
+                 shrinkage = 0.1)
+ranger_pred <- predict(ranger_model, data = testData)$predictions
+gbm_pred <- predict.gbm(gbm_model, newdata = testData, n.trees = parameter_grid$n.trees[i])
+
+prediction_together <- (ranger_pred + gbm_pred) / 2
+rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = testData$Rating,
+                 Predicted = gbm_pred)
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x =Predicted , y = Actual)) +
+  geom_point() +
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  xlim(0,5)
+
+standard_error <- sd(df$Actual-df$Predicted)
+
+# Predict for new charging stations
+ranger_pred <- predict(ranger_model, data = potential_CS)$predictions
+gbm_pred <- predict.gbm(gbm_model, newdata =potential_CS, n.trees = parameter_grid$n.trees[i])
+
+prediction_together <- (ranger_pred + gbm_pred) / 2
+
+critical_value <- 1.96
+lower_bound <- prediction_new - critical_value * standard_error
+upper_bound <- prediction_new + critical_value * standard_error
+confidence_interval <- c(lower_bound, upper_bound)
+
+final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
 
 
 ##### PCA #####
