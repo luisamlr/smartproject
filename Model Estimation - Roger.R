@@ -37,71 +37,19 @@ add_missing_columns <- function(df1, df2) {
 
 # Tranform dataset
 result <- add_missing_columns(df_model, potential_CS)
-potential_CS <- result$df1
-df_model <- result$df2
+potential_CS <- result$df2
+df_model <- result$df1
+
+# Separet the dataset into training-testing and validation
+splitIndex <- createDataPartition(df_model$Rating, p = .9, 
+                                  list = FALSE, 
+                                  times = 1)
+
+trainData <- df_model[ splitIndex,]
+testData  <- df_model[-splitIndex,]
+
 
 ###### GBM - Model and estimation#####
-# Define the parameter grid
-parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
-                              interaction.depth = c(2, 3, 4),
-                              shrinkage = c(0.1, 0.2, 0.3))
-
-# Initialize variables for best parameters and RMSE
-best_params <- NULL
-best_rmse <- Inf
-rmse_comb <- c()
-
-# Perform grid search with k-fold cross-validation
-k <- 10  # Number of folds
-
-
-for (i in 1:nrow(parameter_grid)) {
-  # Initialize variable for average RMSE across folds
-  avg_rmse <- 0
-  
-  for (fold in 1:k) {
-    # Create training and testing indices for the current fold
-    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
-    train_indices <- unlist(indices[-fold])
-    test_indices <- indices[[fold]]
-    
-    # Split data into training and testing sets for the current fold
-    train_data <- df_model[train_indices, ]
-    test_data <- df_model[test_indices, ]
-    
-    # Fit the model with current parameter combination
-    gbm_model <- gbm(Rating ~ ., data = train_data,
-                     n.trees = parameter_grid$n.trees[i],
-                     interaction.depth = parameter_grid$interaction.depth[i],
-                     shrinkage = parameter_grid$shrinkage[i])
-    
-    # Generate predictions for the testing set
-    gbm_pred <- predict(gbm_model, newdata = test_data, n.trees = parameter_grid$n.trees[i])
-    
-    # Calculate RMSE for the current fold
-    fold_rmse <- sqrt(mean((test_data$Rating - gbm_pred)^2))
-    
-    # Accumulate RMSE across folds
-    avg_rmse <- avg_rmse + fold_rmse
-  }
-  
-  # Calculate average RMSE across folds
-  avg_rmse <- avg_rmse / k
-  rmse_comb[i]<-avg_rmse
-  # Check if current parameter combination is the best
-  if (avg_rmse < best_rmse) {
-    best_params <- parameter_grid[i, ]
-    best_rmse <- avg_rmse
-  }
-}
-
-# Print the best parameter combination and RMSE
-cat("Best Parameters:\n")
-print(best_params)
-cat("RMSE:", best_rmse)
-
-library(caret)
-
 # Define the parameter grid
 parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
                               interaction.depth = c(2, 3, 4),
@@ -112,31 +60,26 @@ parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
 ctrl <- trainControl(method = "cv", number = 5)
 
 # Perform grid search with cross-validation using caret
-gbm_model <- train(Rating ~ ., data = df_model, method = "gbm",
+gbm_model <- train(Rating ~ ., data = trainData, method = "gbm",
                    trControl = ctrl, tuneGrid = parameter_grid)
 
 # Print the best parameter combination and RMSE
 cat("Best Parameters:\n")
 print(gbm_model$bestTune)
-cat("RMSE:", gbm_model$results$RMSE[gbm_model$bestIter])
+cat("RMSE:", min(gbm_model[["results"]][["RMSE"]]))
 
 # Fit the model with current parameter combination
-gbm_model <- gbm(Rating ~ ., data = df_model,
+gbm_model <- gbm(Rating ~ ., data = trainData,
                  n.trees = 25,
-                 interaction.depth = 3,
+                 interaction.depth = 4,
                  shrinkage = 0.1)
 
-# Generate predictions for the testing set
-gbm_pred <- predict(gbm_model, newdata = df_model, n.trees = 50)
-a<- sqrt(mean((df_model$Rating - gbm_pred)^2))
-
-temp<-summary.gbm(gbm_model)
-plot(temp$rel.inf)
-library(ggplot2)
-
+# Generate predictions for the Validation set (this has not been trained or tested yet)
+gbm_pred <- predict(gbm_model, newdata = testData, n.trees = 25)
+gmb_v_rmse <- sqrt(mean((testData$Rating - gbm_pred)^2))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = df_model$Rating,
+df <- data.frame(Actual = testData$Rating,
                  Predicted = gbm_pred)
 
 # Calculate the correlation
@@ -148,13 +91,12 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
-  xlim(0,5)+
-  abline(01)
+  xlim(0,5)
 
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
-prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 50)
+prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 25)
 
 critical_value <- 1.96
 lower_bound <- prediction_new - critical_value * standard_error
@@ -166,12 +108,12 @@ final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bo
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
 
-
 ###### RF - Model and estimation####
 
 # Define the parameter grid
 parameter_grid <- expand.grid(num.trees = c(50, 100, 150),
-                              max.depth = c(2, 3, 4))
+                              max.depth = c(2, 3, 4),
+                              mtry = c(2,3,4))
 
 # Initialize variables for best parameters and RMSE
 best_params <- NULL
@@ -223,6 +165,32 @@ for (i in 1:nrow(parameter_grid)) {
 cat("Best Parameters:\n")
 print(best_params)
 cat("RMSE:", best_rmse)
+
+# Define the parameter grid
+parameter_grid <- expand.grid(mtry = c(2,3,4,5,6,7,8,9))
+
+# Define the control parameters for cross-validation
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Perform grid search with cross-validation using caret
+rf_model <- train(Rating ~ ., data = trainData, method = "rf",
+                   trControl = ctrl, tuneGrid = parameter_grid)
+
+
+
+# Define the parameter grid
+parameter_grid <- expand.grid(mtry = c(2, 3, 4),
+                              num.trees = c(50, 100, 150),
+                              max.depth = c(2, 3, 4),
+                              min.node.size = c(1, 5, 10))
+
+# Define the control parameters for cross-validation
+ctrl <- trainControl(method = "cv", number = 5)
+
+# Perform grid search with cross-validation using caret
+rf_model <- train(Rating ~ ., data = trainData, method = "rf",
+                  trControl = ctrl, tuneGrid = parameter_grid)
+
 
 # Fit the model with current parameter combination
 ranger_model <- ranger(Rating ~ ., data = df_model,
