@@ -25,12 +25,13 @@ setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Bus
 # Loading of the data.
 df_cs <- read.csv("All_Chargers.csv") # All chargers location, from Google Maps.
 poi_locations <- read_excel("facilities_around_coordinates.xlsx") # Facilities around chargers, from OpenStreetMap
-#poi_locations$type <- paste0("Fac_",poi_locations$type)
-poi_locations$type1 <- make.names(poi_locations$type)
-poi_locations$type2 <- ifelse(poi_locations$type1 %in% renaming$Old_names,
-                   renaming$New_names[match(poi_locations$type1, renaming$Old_names)],
-                   poi_locations$type1)
-all(poi_locations$type2 %in% renaming$New_names)
+poi_locations$type <- paste0("Fac_",poi_locations$type)
+renaming <- read_excel("renaming.xlsx")
+
+poi_locations$type <- make.names(poi_locations$type)
+poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names,
+                   renaming$New_names[match(poi_locations$type, renaming$Old_names)],
+                   poi_locations$type)
 
 demog_data <- read_excel("CBS.xlsx") # Demographic information for every Dutch postal code, From CBS
 parking_maastricht <- read_excel("parking_spots_maastricht.xlsx") # Maastrich parking spots, from Google maps.
