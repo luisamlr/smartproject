@@ -294,9 +294,12 @@ xgb_preds <- predict(xgb_best_model, dtest)
 rmse <- sqrt(mean((testData$Rating - preds)^2))
 print(paste0("Test RMSE: ", rmse))
 
-
+# Prepare the test data
+testDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
+dtest <- xgb.DMatrix(data = testDataMatrix)
+trainDataxgb <- xgb.DMatrix(data = testDataMatrix)
 # Generate predictions for the testing set
-xgb_pred <- predict(xgb_preds, data = trainData)$predictions
+xgb_pred <- predict(xgb_preds, data = trainDataxgb)$predictions
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = trainData$Rating,
