@@ -46,7 +46,7 @@ splitIndex <- createDataPartition(df_model$Rating, p = .9,
                                   times = 1)
 
 trainData <- df_model[ splitIndex,]
-testData  <- df_model[-splitIndex,]
+testData  <- df_model[-splitIndex,] # Validation dataset
 
 
 ###### GBM - Model and estimation#####
@@ -120,7 +120,7 @@ best_params <- NULL
 best_rmse <- Inf
 
 # Perform grid search with k-fold cross-validation
-k <- 10  # Number of folds
+k <- 5  # Number of folds
 set.seed(42)  # Set seed for reproducibility
 
 for (i in 1:nrow(parameter_grid)) {
@@ -129,13 +129,13 @@ for (i in 1:nrow(parameter_grid)) {
   
   for (fold in 1:k) {
     # Create training and testing indices for the current fold
-    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
+    indices <- createFolds(trainData$Rating, k = k, list = TRUE)
     train_indices <- unlist(indices[-fold])
     test_indices <- indices[[fold]]
     
     # Split data into training and testing sets for the current fold
-    train_data <- df_model[train_indices, ]
-    test_data <- df_model[test_indices, ]
+    train_data <- trainData[train_indices, ]
+    test_data <- trainData[test_indices, ]
     
     # Fit the model with current parameter combination
     ranger_model <- ranger(Rating ~ ., data = train_data, num.trees = parameter_grid$num.trees[i],
@@ -166,44 +166,16 @@ cat("Best Parameters:\n")
 print(best_params)
 cat("RMSE:", best_rmse)
 
-# Define the parameter grid
-parameter_grid <- expand.grid(mtry = c(2,3,4,5,6,7,8,9))
-
-# Define the control parameters for cross-validation
-ctrl <- trainControl(method = "cv", number = 5)
-
-# Perform grid search with cross-validation using caret
-rf_model <- train(Rating ~ ., data = trainData, method = "rf",
-                   trControl = ctrl, tuneGrid = parameter_grid)
-
-
-
-# Define the parameter grid
-parameter_grid <- expand.grid(mtry = c(2, 3, 4),
-                              num.trees = c(50, 100, 150),
-                              max.depth = c(2, 3, 4),
-                              min.node.size = c(1, 5, 10))
-
-# Define the control parameters for cross-validation
-ctrl <- trainControl(method = "cv", number = 5)
-
-# Perform grid search with cross-validation using caret
-rf_model <- train(Rating ~ ., data = trainData, method = "rf",
-                  trControl = ctrl, tuneGrid = parameter_grid)
-
-
 # Fit the model with current parameter combination
-ranger_model <- ranger(Rating ~ ., data = df_model,
-                    num.trees = 150,
-                    max.depth = 3)
+ranger_model <- ranger(Rating ~ ., data = trainData,
+                       num.trees = 150,
+                       max.depth = 3)
 
 # Generate predictions for the testing set
-ranger_pred <- predict(ranger_model, data = df_model)$predictions
-
-# Variable importance
+ranger_pred <- predict(ranger_model, data = testData)$predictions
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = df_model$Rating,
+df <- data.frame(Actual = trainData$Rating,
                  Predicted = ranger_pred)
 
 # Calculate the correlation
@@ -216,6 +188,7 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   ylab("Actual Ratings") +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
   xlim(0,5)
+
 
 standard_error <- sd(df$Actual-df$Predicted)
 
@@ -232,82 +205,102 @@ final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
 
+###### XGB - Model and estimation####
 
-###### SVM - Model and estimation####
-# Define the parameter grid
-parameterGrid <- expand.grid(
-       # Cost values
-  .kernel = c("linear", "radial")
+# Convert the predictors and targets into matrices
+trainDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
+trainLabels <- as.vector(trainData$Rating)
+
+# Convert the data into an xgb.DMatrix object
+dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
+
+# Set up the parameters for xgboost
+params <- list(
+  objective = "reg:squarederror", 
+  eta = 0.3,
+  max_depth = 3,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1
 )
 
-# Initialize variables for best parameters and RMSE
-best_params <- NULL
-best_rmse <- Inf
-rmse_comb <- c()
+# Define the grid
+hyper_grid <- expand.grid(
+  eta = c(0.1, 0.3, 0.5),
+  max_depth = c(1, 2, 3),
+  nrounds = c(50, 100, 250, 500)
+)
 
-# Perform grid search with k-fold cross-validation
-k <- 10  # Number of folds
+# Initialize a data frame to store results
+results <- data.frame(
+  eta = numeric(),
+  max_depth = numeric(),
+  nrounds = numeric(),
+  RMSE = numeric()
+)
 
-for (i in 1:nrow(parameterGrid)) {
-  # Initialize variable for average RMSE across folds
-  avg_rmse <- 0
+# For each row in the grid, run a 5-fold cross-validation
+for(i in 1:nrow(hyper_grid)) {
+  params$eta = hyper_grid$eta[i]
+  params$max_depth = hyper_grid$max_depth[i]
   
-  for (fold in 1:k) {
-    # Create training and testing indices for the current fold
-    indices <- createFolds(df_model$Rating, k = k, list = TRUE)
-    train_indices <- unlist(indices[-fold])
-    test_indices <- indices[[fold]]
-    
-    # Split data into training and testing sets for the current fold
-    train_data <- df_model[train_indices, ]
-    test_data <- df_model[test_indices, ]
-    
-    # Fit the model with current parameter combination
-    svm_model <- svm(Rating ~ ., data = train_data,
-                     kernel = parameterGrid$.kernel[i])
-    
-    # Generate predictions for the testing set
-    svm_pred <- predict(svm_model, newdata = test_data)
-    
-    # Calculate RMSE for the current fold
-    fold_rmse <- sqrt(mean((test_data$Rating - svm_pred)^2))
-    
-    # Accumulate RMSE across folds
-    avg_rmse <- avg_rmse + fold_rmse
-  }
+  cv_model <- xgb.cv(
+    params = params, 
+    data = dtrain, 
+    nrounds = hyper_grid$nrounds[i],
+    nfold = 5,
+    showsd = T,
+    stratified = T,
+    print_every_n = 10,
+    early_stopping_rounds = 10,
+    maximize = F
+  )
   
-  # Calculate average RMSE across folds
-  avg_rmse <- avg_rmse / k
-  rmse_comb[i] <- avg_rmse
-  
-  # Check if current parameter combination is the best
-  if (avg_rmse < best_rmse) {
-    best_params <- parameterGrid[i, ]
-    best_rmse <- avg_rmse
-  }
+  # Store the RMSE for the last round of cross-validation
+  results <- rbind(results, data.frame(
+    eta = hyper_grid$eta[i],
+    max_depth = hyper_grid$max_depth[i],
+    nrounds = hyper_grid$nrounds[i],
+    RMSE = tail(cv_model$evaluation_log$test_rmse_mean, 1)
+  ))
 }
 
-# Print the best parameter combination and RMSE
-cat("Best Parameters:\n")
-print(best_params)
-cat("RMSE:", best_rmse)
+# Select the best parameters
+best_params <- results[which.min(results$RMSE), ]
 
+# Train the model with the best parameters
+xgb_best_model <- xgboost(
+  data = dtrain,
+  params = list(
+    objective = "reg:squarederror",
+    eta = best_params$eta,
+    max_depth = best_params$max_depth,
+    gamma = 0,
+    colsample_bytree = 1,
+    min_child_weight = 1,
+    subsample = 1
+  ),
+  nrounds = best_params$nrounds
+)
 
-# Fit the model with current parameter combination
-svm_model <- svm(Rating ~ ., data = df_model,
-                 n.trees = 50,
-                 interaction.depth = 3,
-                 shrinkage = 0.1)
+# Prepare the test data
+testDataMatrix <- as.matrix(testData[,-which(names(testData) %in% "Rating")])
+dtest <- xgb.DMatrix(data = testDataMatrix)
+
+# Make predictions on test data
+xgb_preds <- predict(xgb_best_model, dtest)
+
+# Calculate RMSE on test data
+rmse <- sqrt(mean((testData$Rating - preds)^2))
+print(paste0("Test RMSE: ", rmse))
+
 
 # Generate predictions for the testing set
-svm_pred <- predict(svm_model, newdata = df_model, n.trees = 50)
-
-temp<-summary.svm(svm_model)
-plot(temp$rel.inf)
+xgb_pred <- predict(xgb_preds, data = trainData)$predictions
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = df_model$Rating,
-                 Predicted = svm_pred)
+df <- data.frame(Actual = trainData$Rating,
+                 Predicted = ranger_pred)
 
 # Calculate the correlation
 correlation <- cor(df$Actual, df$Predicted)
@@ -318,22 +311,21 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
-  xlim(0,5)+
-  abline(01)
+  xlim(0,5)
+
 
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
-prediction_new<- predict(svm_model, newdata = potential_CS, n.trees = 50)
+prediction_new<- predict(ranger_model, newdata = potential_CS)
 
 critical_value <- 1.96
 lower_bound <- prediction_new - critical_value * standard_error
 upper_bound <- prediction_new + critical_value * standard_error
 confidence_interval <- c(lower_bound, upper_bound)
 
-final_SVM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
 
-###### XGB - Model and estimation####
 
 ##### PCA #####
 
