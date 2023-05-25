@@ -214,21 +214,12 @@ trainLabels <- as.vector(trainData$Rating)
 # Convert the data into an xgb.DMatrix object
 dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
 
-# Set up the parameters for xgboost
-params <- list(
-  objective = "reg:squarederror", 
-  eta = 0.3,
-  max_depth = 3,
-  min_child_weight = 1,
-  subsample = 1,
-  colsample_bytree = 1
-)
 
 # Define the grid
 hyper_grid <- expand.grid(
-  eta = c(0.1, 0.3, 0.5),
-  max_depth = c(1, 2, 3),
-  nrounds = c(50, 100, 250, 500)
+  eta = c(0.1, 0.2, 0.3, 0.5),
+  max_depth = c(1, 2, 3, 4, 5),
+  nrounds = c(50, 70, 100, 250, 500)
 )
 
 # Initialize a data frame to store results
@@ -268,19 +259,19 @@ for(i in 1:nrow(hyper_grid)) {
 # Select the best parameters
 best_params <- results[which.min(results$RMSE), ]
 
-# Train the model with the best parameters
+# Train the model with the best parameters. Best parameters are extracted and hard-coded.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = best_params$eta,
-    max_depth = best_params$max_depth,
+    eta = 0.2,
+    max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = best_params$nrounds
+  nrounds = 250
 )
 
 # Prepare the test data
