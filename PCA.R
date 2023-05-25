@@ -1,9 +1,36 @@
-
 set.seed(42)  # For reproducibility
 require(xgboost)
 require(caret)
 
 df <- reshaped_poi_locations
+
+# Identify columns with zero variance
+zero_var_cols <- apply(df, 2, var) == 0
+
+# Drop these columns
+df <- df[, !zero_var_cols]
+
+predictors <- df[, !(names(df) %in% "Rating")]
+target <- df$Rating
+
+# Standardize the predictors
+predictors <- scale(predictors)
+
+# Perform PCA
+pca <- prcomp(predictors, center = TRUE, scale. = TRUE)
+
+# Determine the number of components needed to explain 90% of the variance
+explained_variance <- summary(pca)$importance[2,]
+plot(explained_variance)
+num_components <- which(cumsum(explained_variance) >= 0.70)[1]
+# Since we need 84 PCs to capture at least 70% of the variance, using PCs doesn't look helpful
+
+PCs <- pca$x[, 1:num_components]
+# Convert the PCs into a data frame
+PCs_df <- as.data.frame(PCs)
+
+df <- cbind(PCs_df, target)
+colnames(df)[85] <- "Rating"
 splitIndex <- createDataPartition(df$Rating, p = .9, 
                                   list = FALSE, 
                                   times = 1)
@@ -18,15 +45,6 @@ trainLabels <- as.vector(trainData$Rating)
 # Convert the data into an xgb.DMatrix object
 dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
 
-# # Set up the parameters for xgboost
-# params <- list(
-#   objective = "reg:squarederror", 
-#   eta = 0.3,
-#   max_depth = 3,
-#   min_child_weight = 1,
-#   subsample = 1,
-#   colsample_bytree = 1
-# )
 
 # Define the grid
 hyper_grid <- expand.grid(
@@ -84,7 +102,7 @@ xgb_best_model <- xgboost(
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 250
+  nrounds = 70
 )
 
 # Prepare the test data
@@ -97,3 +115,4 @@ preds <- predict(xgb_best_model, dtest)
 # Calculate RMSE on test data
 rmse <- sqrt(mean((testData$Rating - preds)^2))
 print(paste0("Test RMSE: ", rmse))
+## RMSE is 1.569
