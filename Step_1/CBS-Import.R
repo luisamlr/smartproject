@@ -1,3 +1,11 @@
+# ------------------------------------------------------------------------------
+# This file performs data preparation for the CBS dataset to obtain values at 
+# the postcode level. It imports the raw dataset from CBS, aggregates the data 
+# at the 4-digit postcode level, and exports the processed data as an Excel 
+# file. The exported file can then be imported into other files to join with 
+# relevant data.
+# ------------------------------------------------------------------------------
+
 # Load required packages
 library(tidyr)
 library(dplyr)
