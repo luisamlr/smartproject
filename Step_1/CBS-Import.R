@@ -13,7 +13,6 @@ library(readr)
 library(jsonlite)
 library(ggthemes)
 
-
 ##### Socioeconomic data ####
 # Import observations (raw data)
 obs_data<- read_delim("/Users/rogerpuertolas/Desktop/CBS DATA/Observations.csv", 
