@@ -1,3 +1,18 @@
+# ------------------------------------------------------------------------------
+# We compare the performance of GBM, Random Forest, XGBoost, and an ensemble of 
+# GBM and Random Forest models in estimating current charging station ratings, 
+# as well as the consideration of PCA in improving the XGBoost model.  
+# The evaluation involves a cross-validation approach, where 10% of the dataset 
+# is kept as validation and the remaining 90% is used for model tuning via 
+# 5-fold cross-validation.
+# The caret package is utilized, with the RMSE (Root Mean Square Error) serving 
+# as the primary metric for tuning the models. Additionally, other metrics such 
+# as MAE (Mean Absolute Error) and correlation ratio are considered for model 
+# comparison using the 10% validation set.
+# Finally, new predictions are generated for potential charging stations and 
+# exported with 95% and 70% confidence intervals.
+# ------------------------------------------------------------------------------
+
 # Load required library for plotting
 library(ggplot2)
 library(ranger)
@@ -99,11 +114,14 @@ standard_error <- sd(df$Actual-df$Predicted)
 prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 25)
 
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- prediction_new - critical_value * standard_error
+upper_bound_95 <- prediction_new + critical_value * standard_error
 
-final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error
+upper_bound_75 <- prediction_new + critical_value * standard_error
+
+final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -189,18 +207,20 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
   xlim(0,5)
 
-
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
 prediction_new<- predict(ranger_model, newdata = potential_CS, n.trees = 50)
 
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- prediction_new - critical_value * standard_error
+upper_bound_95 <- prediction_new + critical_value * standard_error
 
-final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error
+upper_bound_75 <- prediction_new + critical_value * standard_error
+
+final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -264,14 +284,14 @@ xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.2,
-    max_depth = 1,
+    eta = 0.1,
+    max_depth = 4,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 250
+  nrounds = 500
 )
 
 # Prepare the test data
@@ -282,7 +302,7 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 xgb_preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-rmse <- sqrt(mean((testData$Rating - preds)^2))
+rmse <- sqrt(mean((testData$Rating - xgb_preds)^2))
 print(paste0("Test RMSE: ", rmse))
 
 # Convert the predictors and targets into matrices
@@ -435,16 +455,128 @@ ranger_pred <- predict(ranger_model, data = potential_CS)$predictions
 gbm_pred <- predict.gbm(gbm_model, newdata =potential_CS, n.trees = parameter_grid$n.trees[i])
 
 prediction_together <- (ranger_pred + gbm_pred) / 2
-
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- pprediction_together - critical_value * standard_error
+upper_bound_95 <- prediction_together + critical_value * standard_error
 
-final_GBM<-cbind(potential_CS, Prediction = prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_together - critical_value * standard_error
+upper_bound_75 <- prediction_together + critical_value * standard_error
 
-
-# Nothing
+final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 ##### PCA #####
+df <- df_model
 
+# Identify columns with zero variance
+zero_var_cols <- apply(df, 2, var) == 0
+
+# Drop these columns
+df <- df[, !zero_var_cols]
+
+predictors <- df[, !(names(df) %in% "Rating")]
+target <- df$Rating
+
+# Standardize the predictors
+predictors <- scale(predictors)
+
+# Perform PCA
+pca <- prcomp(predictors, center = TRUE, scale. = TRUE)
+
+# Determine the number of components needed to explain 90% of the variance
+explained_variance <- summary(pca)$importance[2,]
+plot(explained_variance)
+num_components <- which(cumsum(explained_variance) >= 0.70)[1]
+# Since we need 84 PCs to capture at least 70% of the variance, using PCs doesn't look helpful
+
+PCs <- pca$x[, 1:num_components]
+# Convert the PCs into a data frame
+PCs_df <- as.data.frame(PCs)
+
+df <- cbind(PCs_df, target)
+colnames(df)[85] <- "Rating"
+splitIndex <- createDataPartition(df$Rating, p = .9, 
+                                  list = FALSE, 
+                                  times = 1)
+
+trainData <- df[ splitIndex,]
+testData  <- df[-splitIndex,]
+
+# Convert the predictors and targets into matrices
+trainDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
+trainLabels <- as.vector(trainData$Rating)
+
+# Convert the data into an xgb.DMatrix object
+dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
+
+
+# Define the grid
+hyper_grid <- expand.grid(
+  eta = c(0.1, 0.2, 0.3, 0.5),
+  max_depth = c(1, 2, 3, 4, 5),
+  nrounds = c(50, 70, 100, 250, 500)
+)
+
+# Initialize a data frame to store results
+results <- data.frame(
+  eta = numeric(),
+  max_depth = numeric(),
+  nrounds = numeric(),
+  RMSE = numeric()
+)
+
+# For each row in the grid, run a 5-fold cross-validation
+for(i in 1:nrow(hyper_grid)) {
+  params$eta = hyper_grid$eta[i]
+  params$max_depth = hyper_grid$max_depth[i]
+  
+  cv_model <- xgb.cv(
+    params = params, 
+    data = dtrain, 
+    nrounds = hyper_grid$nrounds[i],
+    nfold = 5,
+    showsd = T,
+    stratified = T,
+    print_every_n = 10,
+    early_stopping_rounds = 10,
+    maximize = F
+  )
+  
+  # Store the RMSE for the last round of cross-validation
+  results <- rbind(results, data.frame(
+    eta = hyper_grid$eta[i],
+    max_depth = hyper_grid$max_depth[i],
+    nrounds = hyper_grid$nrounds[i],
+    RMSE = tail(cv_model$evaluation_log$test_rmse_mean, 1)
+  ))
+}
+
+# Select the best parameters
+best_params <- results[which.min(results$RMSE), ]
+
+# Train the model with the best parameters. Extracted and hard-coded.
+xgb_best_model <- xgboost(
+  data = dtrain,
+  params = list(
+    objective = "reg:squarederror",
+    eta = 0.3,
+    max_depth = 1,
+    gamma = 0,
+    colsample_bytree = 1,
+    min_child_weight = 1,
+    subsample = 1
+  ),
+  nrounds = 500
+)
+
+# Prepare the test data
+testDataMatrix <- as.matrix(testData[,-which(names(testData) %in% "Rating")])
+dtest <- xgb.DMatrix(data = testDataMatrix)
+
+# Make predictions on test data
+preds <- predict(xgb_best_model, dtest)
+
+# Calculate RMSE on test data
+rmse <- sqrt(mean((testData$Rating - preds)^2))
+print(paste0("Test RMSE: ", rmse))
+## RMSE is 1.63
