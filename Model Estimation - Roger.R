@@ -264,14 +264,14 @@ xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.2,
-    max_depth = 1,
+    eta = 0.1,
+    max_depth = 4,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 250
+  nrounds = 500
 )
 
 # Prepare the test data
@@ -282,7 +282,7 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 xgb_preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-rmse <- sqrt(mean((testData$Rating - preds)^2))
+rmse <- sqrt(mean((testData$Rating - xgb_preds)^2))
 print(paste0("Test RMSE: ", rmse))
 
 # Convert the predictors and targets into matrices
