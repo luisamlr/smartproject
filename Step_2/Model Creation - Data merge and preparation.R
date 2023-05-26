@@ -1,3 +1,7 @@
+##### ETL Data Extracted on Step 1 #####
+
+# The objective 
+
 # Install and load the required packages
 
 library(caTools)
@@ -18,45 +22,60 @@ library(geosphere)
 setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject")
 #setwd("~/Maastricht University/smartproject")
 
-### Consolidation of Data from Diverse Sources ###
+########### LOADING DATA SOURCES ###########
 
-# Loading of the data.
-df_cs <- read.csv("All_Chargers.csv") # All chargers location, from Google Maps.
-poi_locations <- read_excel("facilities_around_coordinates.xlsx") # Facilities around chargers, from OpenStreetMap
-demog_data <- read_excel("CBS.xlsx") # Demographic information for every Dutch postal code, From CBS
-parking_maastricht <- read_excel("parking_spots_maastricht.xlsx") # Maastrich parking spots, from Google maps.
-highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway, from Google maps.
-highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway)
+#### AUXILIARY FILES ####
+renaming <- read_excel("renaming.xlsx")
 
-### Data cleaning
+#### GOOGLE MAPS ####
+
+df_cs <- read.csv("All_Chargers.csv") # All Chargers, File loading.
+highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway.
+highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway) # Selecting only used columns.
+
+#### OPEN STREET MAP ####
+
+# Facilities around chargers #
+poi_locations <- read_excel("facilities_around_coordinates.xlsx") # File loading.
+poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling.
+poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R.
+poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names, 
+                   renaming$New_names[match(poi_locations$type, renaming$Old_names)],
+                   poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
+
+#### CBS STATISTICS NETHERLANDS ####
+
+demog_data <- read_excel("CBS.xlsx") # File loading.
+names(demog_data) <- make.names(names(demog_data)) # Fix column names to avoid problem on R.
+demog_data_names <- colnames(demog_data) # Saving column names.
+indices <- match(demog_data_names, renaming$Old_names) # Find the indices of demog_data_names in renaming$Old_names
+demog_data_names <- ifelse(!is.na(indices), renaming$New_names[indices], demog_data_names) # If there's a match, replace with renaming$New_names, else keep the original name
+names(demog_data) <- demog_data_names # Assign the new column names to demog_data
+demog_data <- demog_data[, !(colnames(demog_data) == "WijkenEnBuurten")] # Clean one column that is completely null.
+
+########### CALCULATING AVERAGE RATINGS ###########
+
+# Data cleaning #
 # Select only those stations with review and inside the Netherlands
 df_cs<- df_cs[df_cs$Ratings.Total>0,]
 df_cs<- df_cs[df_cs$Country=="Netherlands" ,]
 
-summary(df_cs)
-unique(df_cs$Name) #74 different types of stations
-
-# Provinces:
-unique(df_cs$Admin.Area.Level.1) # It says there are 15, however in the Netherlands there are only 12 provinces
-
-# replace "North" with "Noord" and " " with "-" in the Admin.Area.Level.1 column
+# Replace "North" with "Noord" and " " with "-" in the Admin.Area.Level.1 column
 df_cs$Admin.Area.Level.1 <- gsub("North", "Noord", df_cs$Admin.Area.Level.1)
 df_cs$Admin.Area.Level.1 <- gsub("South", "Zuid", df_cs$Admin.Area.Level.1)
 df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
 
-unique(df_cs$Admin.Area.Level.1) # 12 provinces in Netherlands
-
-# function to calculate distance between two coordinates using geosphere package
+# Function to calculate distance between two coordinates using geosphere package
 calc_distance <- function(lat1, lon1, lat2, lon2) {
   dist <- distHaversine(c(lon1, lat1), c(lon2, lat2))
   return(dist)
 }
 
-# function to find the nearest charging stations based on distance
+# Function to find the nearest charging stations based on distance
 find_nearest <- function(lat, lon, df_cs, closest = 1) {
   df_cs$Distance <- sapply(1:nrow(df_cs), function(i) {
     if (df_cs$Latitude[i] == lat && df_cs$Longitude[i] == lon) {
-      return(Inf) # set distance to infinity for charging station at given location
+      return(Inf) # Set distance to infinity for charging station at given location
     } else {
       return(calc_distance(lat, lon, df_cs$Latitude[i], df_cs$Longitude[i]))
     }
@@ -65,13 +84,14 @@ find_nearest <- function(lat, lon, df_cs, closest = 1) {
   return(head(df_sorted, n=closest))
 }
 
-# function to compute average rating of the nearest charging stations
+# Function to compute average rating of the nearest charging stations
 rating_nearest <- function(lat, lon, df, closest_cs = 1) {
   nearest_stations <- find_nearest(lat, lon, df,closest_cs)
   avg_rating <- mean(nearest_stations$Rating)
   return(avg_rating)
 }
 
+# Starting empty dataframes for using in the next calculation.
 n_rating <- c()
 avg3 <- c()
 avg5 <- c()
@@ -201,11 +221,9 @@ reshaped_poi_locations <- reshaped_poi_locations %>%
 reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(highway_dist, by = c("charger_longitude" = "charger_longitude", "charger_latitude" = "charger_latitude"))
 
-# Clean one column that is completely null.
-reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locations) == "WijkenEnBuurten")]
-
 # Fixing variable names, to avoid problem with columns names starting with numbers. Cleaning rows with NAs.
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
+?make.names
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
 
 # Before saving the file to be use in model creations steps, is neccesary to remove an
