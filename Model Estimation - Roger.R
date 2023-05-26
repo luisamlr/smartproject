@@ -34,7 +34,10 @@ add_missing_columns <- function(df1, df2) {
   
   return(list(df1 = df1, df2 = df2))
 }
-
+names(potential_CS)
+names(df_model)
+rot<-setdiff(names(df_model), names(potential_CS))
+rot
 # Tranform dataset
 result <- add_missing_columns(df_model, potential_CS)
 potential_CS <- result$df2
