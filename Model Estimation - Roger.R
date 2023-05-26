@@ -1,3 +1,18 @@
+# ------------------------------------------------------------------------------
+# We compare the performance of GBM, Random Forest, XGBoost, and an ensemble of 
+# GBM and Random Forest models in estimating current charging station ratings, 
+# as well as the consideration of PCA in improving the XGBoost model.  
+# The evaluation involves a cross-validation approach, where 10% of the dataset 
+# is kept as validation and the remaining 90% is used for model tuning via 
+# 5-fold cross-validation.
+# The caret package is utilized, with the RMSE (Root Mean Square Error) serving 
+# as the primary metric for tuning the models. Additionally, other metrics such 
+# as MAE (Mean Absolute Error) and correlation ratio are considered for model 
+# comparison using the 10% validation set.
+# Finally, new predictions are generated for potential charging stations and 
+# exported with 95% and 70% confidence intervals.
+# ------------------------------------------------------------------------------
+
 # Load required library for plotting
 library(ggplot2)
 library(ranger)
@@ -34,10 +49,7 @@ add_missing_columns <- function(df1, df2) {
   
   return(list(df1 = df1, df2 = df2))
 }
-names(potential_CS)
-names(df_model)
-rot<-setdiff(names(df_model), names(potential_CS))
-rot
+
 # Tranform dataset
 result <- add_missing_columns(df_model, potential_CS)
 potential_CS <- result$df2
@@ -102,11 +114,14 @@ standard_error <- sd(df$Actual-df$Predicted)
 prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 25)
 
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- prediction_new - critical_value * standard_error
+upper_bound_95 <- prediction_new + critical_value * standard_error
 
-final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error
+upper_bound_75 <- prediction_new + critical_value * standard_error
+
+final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -192,18 +207,20 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
   xlim(0,5)
 
-
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
 prediction_new<- predict(ranger_model, newdata = potential_CS, n.trees = 50)
 
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- prediction_new - critical_value * standard_error
+upper_bound_95 <- prediction_new + critical_value * standard_error
 
-final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error
+upper_bound_75 <- prediction_new + critical_value * standard_error
+
+final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -438,16 +455,15 @@ ranger_pred <- predict(ranger_model, data = potential_CS)$predictions
 gbm_pred <- predict.gbm(gbm_model, newdata =potential_CS, n.trees = parameter_grid$n.trees[i])
 
 prediction_together <- (ranger_pred + gbm_pred) / 2
-
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- pprediction_together - critical_value * standard_error
+upper_bound_95 <- prediction_together + critical_value * standard_error
 
-final_GBM<-cbind(potential_CS, Prediction = prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_together - critical_value * standard_error
+upper_bound_75 <- prediction_together + critical_value * standard_error
 
-
-# Nothing
+final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 ##### PCA #####
 df <- df_model
