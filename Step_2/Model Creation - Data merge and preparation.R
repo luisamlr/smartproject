@@ -1,9 +1,12 @@
-##### ETL Data Extracted on Step 1 #####
+################################################################
+#### Smart Project: Data Merge, Cleaning & Variable Control ####
+################################################################
 
-# The objective 
+# Objective: Consolidation of Data from Diverse Sources
 
-# Install and load the required packages
 
+#### Step 1: loading relevant libraries and importing data ####
+## Install and load the required packages
 library(caTools)
 library(randomForest)
 library(dplyr)
@@ -18,34 +21,50 @@ library(tidyr)
 library(readr)
 library(geosphere)
 
-# Set the working directory.
-setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject")
+## Setting the working directory ##
+#setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject") #setwd("~/Maastricht University/smartproject")
 #setwd("~/Maastricht University/smartproject")
+setwd("/Users/isamahler/Desktop/SmartRProject/newsmart/Step_1")
 
-########### LOADING DATA SOURCES ###########
 
-#### AUXILIARY FILES ####
+## Loading of the data sources ##
+# All chargers locations, from Google Maps:
+df_cs <- read.csv("All_Chargers.csv")
+# Facilities around chargers, from OpenStreetMap:
+poi_locations <- read_excel("facilities_around_coordinates.xlsx")
+# Demographic information for every Dutch postal code, From CBS:
+demog_data <- read_excel("CBS.xlsx")
+# Maastricht parking spots, from Google maps:
+parking_maastricht <- read_excel("parking_spots_maastricht.xlsx")
+# Distance to the closes highway, from Google maps:
+highway_dist <- read.csv("highway_dist.csv")
+# Auxiliary file:
 renaming <- read_excel("renaming.xlsx")
 
-#### GOOGLE MAPS ####
 
-df_cs <- read.csv("All_Chargers.csv") # All Chargers, File loading.
-highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway.
-highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway) # Selecting only used columns.
+#### Step 2: Data cleaning ####
 
-#### OPEN STREET MAP ####
+## GOOGLE MAPS ##
+# Selecting only used columns
+highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway) # selecting only used columns
+# Selecting only those stations with review and inside the Netherlands
+df_cs <- df_cs[df_cs$Ratings.Total>0,]
+df_cs <- df_cs[df_cs$Country=="Netherlands" ,]
+# Replace "North" with "Noord" and " " with "-" in the Admin.Area.Level.1 column
+df_cs$Admin.Area.Level.1 <- gsub("North", "Noord", df_cs$Admin.Area.Level.1)
+df_cs$Admin.Area.Level.1 <- gsub("South", "Zuid", df_cs$Admin.Area.Level.1)
+df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
+# unique(df_cs$Admin.Area.Level.1) # 12 provinces in Netherlands
 
-# Facilities around chargers #
-poi_locations <- read_excel("facilities_around_coordinates.xlsx") # File loading.
+
+## OPEN STREET MAP ##
 poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling.
 poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R.
 poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names, 
                    renaming$New_names[match(poi_locations$type, renaming$Old_names)],
                    poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
 
-#### CBS STATISTICS NETHERLANDS ####
-
-demog_data <- read_excel("CBS.xlsx") # File loading.
+## CBS STATISTICS NETHERLANDS ##
 names(demog_data) <- make.names(names(demog_data)) # Fix column names to avoid problem on R.
 demog_data_names <- colnames(demog_data) # Saving column names.
 indices <- match(demog_data_names, renaming$Old_names) # Find the indices of demog_data_names in renaming$Old_names
@@ -53,17 +72,9 @@ demog_data_names <- ifelse(!is.na(indices), renaming$New_names[indices], demog_d
 names(demog_data) <- demog_data_names # Assign the new column names to demog_data
 demog_data <- demog_data[, !(colnames(demog_data) == "WijkenEnBuurten")] # Clean one column that is completely null.
 
-########### CALCULATING AVERAGE RATINGS ###########
 
-# Data cleaning #
-# Select only those stations with review and inside the Netherlands
-df_cs<- df_cs[df_cs$Ratings.Total>0,]
-df_cs<- df_cs[df_cs$Country=="Netherlands" ,]
-
-# Replace "North" with "Noord" and " " with "-" in the Admin.Area.Level.1 column
-df_cs$Admin.Area.Level.1 <- gsub("North", "Noord", df_cs$Admin.Area.Level.1)
-df_cs$Admin.Area.Level.1 <- gsub("South", "Zuid", df_cs$Admin.Area.Level.1)
-df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
+#### Step 3: calculating average ratings ####
+### Finding the averages of the 3, 5 or 10 nearest charging stations
 
 # Function to calculate distance between two coordinates using geosphere package
 calc_distance <- function(lat1, lon1, lat2, lon2) {
@@ -75,7 +86,7 @@ calc_distance <- function(lat1, lon1, lat2, lon2) {
 find_nearest <- function(lat, lon, df_cs, closest = 1) {
   df_cs$Distance <- sapply(1:nrow(df_cs), function(i) {
     if (df_cs$Latitude[i] == lat && df_cs$Longitude[i] == lon) {
-      return(Inf) # Set distance to infinity for charging station at given location
+      return(Inf) # setting distance to infinity for charging station at given location
     } else {
       return(calc_distance(lat, lon, df_cs$Latitude[i], df_cs$Longitude[i]))
     }
@@ -96,7 +107,7 @@ n_rating <- c()
 avg3 <- c()
 avg5 <- c()
 avg10 <- c()
-nrow(df_cs)
+
 for (i in 1:nrow(df_cs)){
   # Find the nearest rating per CS
   n_rating[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs,1)
@@ -110,7 +121,7 @@ for (i in 1:nrow(df_cs)){
 }
 
 
-#### Find the closest, save distance####
+# Finding the closest charging stations, save the distance
 closest <- function(lat, lon, df_cs) {
   df_cs$Distance <- sapply(1:nrow(df_cs), function(i) calc_distance(lat, lon, df_cs$Latitude[i], df_cs$Longitude[i]))
   df_sorted <- df_cs[order(df_cs$Distance),]
@@ -124,8 +135,7 @@ for (i in 1:nrow(df_cs)){
   print(paste0("Calculating info for charger ", i," of ", nrow(df_cs)))
 }
 
-#### Calculate how many stations are under 1000m, 500m and 200m####
-
+## Calculating how many stations are under 1000m, 500m and 200m
 # Import the dataset ---- We work with the whole dataset since we do not care whether they have review or not in order to take into account
 df_all<-read.csv("All_Chargers.csv")
 df_all<-df_all[df_all$Country=="Netherlands" ,]
@@ -169,8 +179,8 @@ for (i in 1:nrow(df_all)) {
 # Merging with previous information
 aggregate_rating<-cbind(df_cs, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
 
-# Eliminate duplicates.
-#ev_chargers_reviews <- distinct(ev_chargers_reviews)
+# Eliminating duplicates
+# ev_chargers_reviews <- distinct(ev_chargers_reviews)
 poi_locations <- distinct(poi_locations)
 demog_data <- distinct(demog_data)
 parking_maastricht <- distinct(parking_maastricht)
@@ -186,14 +196,14 @@ parking_maastricht$longitude <- round(as.numeric(parking_maastricht$longitude),7
 aggregate_rating$Latitude <- round(as.numeric(aggregate_rating$Latitude),7)
 aggregate_rating$Longitude <- round(as.numeric(aggregate_rating$Longitude),7)
 
-# Additional data format corrections.
+# Additional data format corrections
 demog_data$StringValue <- as.character(demog_data$StringValue)
 
 # Calculating the distance between chargers and points of interest.
 poi_locations$distance <- mapply(calc_distance, poi_locations$charger_latitude, poi_locations$charger_longitude, poi_locations$latitude, poi_locations$longitude)
 poi_locations$distance <- as.numeric(poi_locations$distance)
 
-# Ensure that the key columns in both data frames have the same names.
+# Ensuring that the key columns in both data frames have the same names.
 names(demog_data)[names(demog_data) == "Longitude"] <- "charger_longitude"
 names(demog_data)[names(demog_data) == "Latitude"] <- "charger_latitude"
 names(aggregate_rating)[names(aggregate_rating) == "Longitude"] <- "charger_longitude"
@@ -223,7 +233,7 @@ reshaped_poi_locations <- reshaped_poi_locations %>%
 
 # Fixing variable names, to avoid problem with columns names starting with numbers. Cleaning rows with NAs.
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
-?make.names
+
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
 
 # Before saving the file to be use in model creations steps, is neccesary to remove an
