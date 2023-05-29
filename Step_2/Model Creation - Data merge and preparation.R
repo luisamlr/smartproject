@@ -16,27 +16,9 @@ last_edit <- "2023-05-28"
 #Step 4. if num_columns_between is above 0, then open file "reshaped_poi_locations" from the environment
 #Step 5. find out the names of the columns that show up behind "charger_latitude" and before "Rating"
 #Step 6. sort these variables manually into one of the categories (starting in line 299)
-################################################################
-#### Smart Project: Data Merge, Cleaning & Variable Control ####
-################################################################
-
-# Objective: Consolidation of Data from Diverse Sources
-
-#### MAINTENANCE INSTRUCTIONS ####
-#the last edit of this code took place on: (please update)
-last_edit <- "2023-05-28"
-
-### to-dos: ###
-##check the number of variables that have not been sorted into categories:
-#Step 1. comment in the loops (lines 127-141, lines 157-162, lines 177-209)
-#Step 2. run this code once (takes approx 28 minutes)
-#Step 3. check num_columns_between
-#Step 4. if num_columns_between is above 0, then open file "reshaped_poi_locations" from the environment
-#Step 5. find out the names of the columns that show up behind "charger_latitude" and before "Rating"
-#Step 6. sort these variables manually into one of the categories (starting in line 299)
-#Alternatively:
-# if you want to create a new category, also make sure to include it in the dplyr function in line 357
-# if you wish to instead remove the variable add it into the vector in line 287
+         #Alternatively:
+         # if you want to create a new category, also make sure to include it in the dplyr function in line 357
+         # if you wish to instead remove the variable add it into the vector in line 287
 #Step 7. run code again & repeat to check if anything was missed
 #Step 8. comment the loops (lines 127-141, lines 157-162, lines 177-209) back out
 
