@@ -262,7 +262,7 @@ reshaped_poi_locations_old <- select(reshaped_poi_locations, -Name, -Address, -R
 # We discard variables again below but with that being part of the "optional" section this is still necessary to ensure they are taken out
 variables_to_remove <- c("Name","Address","Reviews","Ratings.Total","Postal.Code","Street.Number","Route","Locality","Admin.Area.Level.1","Admin.Area.Level.2","Country","Phone.Number","Website","Opening.Hours","postal_trim",
                        "Fac_afro","Fac_aq","Fac_awards","Fac_bell","Fac_disused","Fac_flo","Fac_general","Fac_grinding","Fac_information","Fac_mirror_setting_marks",
-                       "Fac_model","Fac_modeling","Fac_new_age","Fac_no","Fac_safe","Fac_sun","Fac_Toko","Fac_trophy","Fac_vacant","Fac_voucher","Fac_webshop","Fac_yes",
+                       "Fac_model","Fac_modeling","Fac_new_age","Fac_no","Fac_safe","Fac_sun","Fac_toko","Fac_trophy","Fac_vacant","Fac_voucher","Fac_webshop","Fac_yes",
                        "Immigrants_western_total","Immigrants_other_total","Immigrants_Marokko","Immigrants_Dutch_Antilles_Aruba","Immigrants_Suriname","Immigrants_Turkey","Immigrants_other_non_western")
 
 reshaped_poi_locations <- reshaped_poi_locations %>% 
