@@ -7,7 +7,6 @@
 #### MAINTENANCE INSTRUCTIONS ####
 #the last edit of this code took place on: (please update)
 last_edit <- "2023-05-28"
-
 ### to-dos: ###
 ##check the number of variables that have not been sorted into categories:
 #Step 1. comment in the loops (lines 127-141, lines 157-162, lines 177-209)
@@ -21,6 +20,7 @@ last_edit <- "2023-05-28"
          # if you wish to instead remove the variable add it into the vector in line 287
 #Step 7. run code again & repeat to check if anything was missed
 #Step 8. comment the loops (lines 127-141, lines 157-162, lines 177-209) back out
+################################################################
 
 #### Step 1: loading relevant libraries and importing data ####
 ## Install and load the required packages
