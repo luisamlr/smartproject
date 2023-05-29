@@ -466,45 +466,63 @@ upper_bound_75 <- prediction_together + critical_value * standard_error
 final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 
 ##### PCA #####
-df <- df_model
 
-# Identify columns with zero variance
-zero_var_cols <- apply(df, 2, var) == 0
+target_var <- "Rating"
 
-# Drop these columns
-df <- df[, !zero_var_cols]
 
-predictors <- df[, !(names(df) %in% "Rating")]
-target <- df$Rating
+# To keep the original dataset
+training_data <- trainData
+testing_data <- testData
 
-# Standardize the predictors
-predictors <- scale(predictors)
+# Separate features and target variable
+training_features <- training_data[, !(names(training_data) %in% target_var)]
+training_target <- training_data[[target_var]]
 
-# Perform PCA
-pca <- prcomp(predictors, center = TRUE, scale. = TRUE)
+testing_features <- testing_data[, !(names(testing_data) %in% target_var)]
+testing_target <- testing_data[[target_var]]
 
-# Determine the number of components needed to explain 90% of the variance
-explained_variance <- summary(pca)$importance[2,]
-plot(explained_variance)
-num_components <- which(cumsum(explained_variance) >= 0.70)[1]
-# Since we need 84 PCs to capture at least 70% of the variance, using PCs doesn't look helpful
+# Check for columns with zero variance in the training data
+zero_var_cols <- nearZeroVar(training_features, saveMetrics = TRUE)
 
-PCs <- pca$x[, 1:num_components]
-# Convert the PCs into a data frame
-PCs_df <- as.data.frame(PCs)
+# Keep only columns with variance not equal to zero
+training_features <- training_features[, zero_var_cols$nzv == FALSE]
+testing_features <- testing_features[, names(testing_features) %in% names(training_features)]
 
-df <- cbind(PCs_df, target)
-colnames(df)[85] <- "Rating"
-splitIndex <- createDataPartition(df$Rating, p = .9, 
-                                  list = FALSE, 
-                                  times = 1)
+# Standardize the training data
+training_features <- scale(training_features)
 
-trainData <- df[ splitIndex,]
-testData  <- df[-splitIndex,]
+# Save center and scale of the training data
+training_center <- attr(training_features, "scaled:center")
+training_scale <- attr(training_features, "scaled:scale")
+
+# Fit PCA on the training data
+pca_model <- prcomp(training_features)
+
+# Print summary of the PCA model
+print(summary(pca_model))
+
+# Identify the number of principal components needed to explain at least 80% of the variance
+explained_variance_ratio <- pca_model$sdev^2 / sum(pca_model$sdev^2)
+cumulative_explained_variance <- cumsum(explained_variance_ratio)
+num_components <- which(cumulative_explained_variance >= 0.80)[1]
+
+# Now let's apply this transformation to the test data.
+# First, we need to standardize the test data using the mean and sd of the training data.
+testing_features <- scale(testing_features, center = training_center, scale = training_scale)
+
+# Now transform the test data using the PCA model
+transformed_test_features <- predict(pca_model, newdata = testing_features)
+# Add back the target variable
+transformed_training_features <- pca_model$x[, 1:num_components]
+transformed_test_features <- transformed_test_features[, 1:num_components]
+
+# Add back the target variable
+transformed_training_data <- data.frame(transformed_training_features, Rating = training_target)
+transformed_testing_data <- data.frame(transformed_test_features, Rating = testing_target)
 
 # Convert the predictors and targets into matrices
-trainDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
-trainLabels <- as.vector(trainData$Rating)
+trainDataMatrix <- as.matrix(transformed_training_data[,-which(names(transformed_training_data) %in% "Rating")])
+trainLabels <- as.vector(transformed_training_data$Rating)
 
 # Convert the data into an xgb.DMatrix object
 dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
@@ -559,24 +577,24 @@ xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.3,
+    eta = 0.1,
     max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 500
+  nrounds = 250
 )
 
 # Prepare the test data
-testDataMatrix <- as.matrix(testData[,-which(names(testData) %in% "Rating")])
+testDataMatrix <- as.matrix(transformed_testing_data[,-which(names(transformed_testing_data) %in% "Rating")])
 dtest <- xgb.DMatrix(data = testDataMatrix)
 
 # Make predictions on test data
 preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-rmse <- sqrt(mean((testData$Rating - preds)^2))
+rmse <- sqrt(mean((transformed_testing_data$Rating - preds)^2))
 print(paste0("Test RMSE: ", rmse))
-## RMSE is 1.63
+## RMSE is 1.44
