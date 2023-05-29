@@ -9,8 +9,10 @@
 #the last edit of this code took place on: (please update)
 last_edit <- "2023-05-28"
 ### to-dos: ###
-#Step 1. Running the code takes approximately 17 minutes
+#S1. Running the code takes approximately 17 minutes
 ################################################################
+
+
 
 #### Step 1: loading relevant libraries and importing data ####
 ## Install and load the required packages
