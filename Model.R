@@ -294,6 +294,7 @@ df <- data.frame(Actual = testData$Rating,
 # Calculate the correlation
 correlation_xgb <- cor(df$Actual, df$Predicted)
 mc_xgb<-c(xgb_v_rmse, xgb_v_mae, correlation_xgb)
+standard_error_xgb <- sd(df$Actual-df$Predicted)
 
 # Create the scatter plot
 ggplot(df, aes(x = Predicted, y = Actual)) +
@@ -600,5 +601,96 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
 
 model_comparison<-cbind(GBM = mc_gmb, RF = mc_ranger, XGB = mc_xgb, "ENS(RF/GBM)" = mc_ens, PCA = mc_pca)
 model_comparison
+
+# Select XGB as the most accurate and efficient model
+
+# Train the model with the best parameters. Best parameters are extracted and hard-coded.
+# Convert the predictors and targets into matrices
+trainDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
+trainLabels <- as.vector(trainData$Rating)
+
+# Convert the data into an xgb.DMatrix object
+dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
+
+# Define the grid
+hyper_grid <- expand.grid(
+  eta = c(0.1, 0.2, 0.3, 0.5),
+  max_depth = c(1, 2, 3, 4, 5),
+  nrounds = c(50, 70, 100, 250, 500)
+)
+
+# Initialize a data frame to store results
+results <- data.frame(
+  eta = numeric(),
+  max_depth = numeric(),
+  nrounds = numeric(),
+  RMSE = numeric()
+)
+
+params<-c()
+# For each row in the grid, run a 5-fold cross-validation
+for(i in 1:nrow(hyper_grid)) {
+  params$eta = hyper_grid$eta[i]
+  params$max_depth = hyper_grid$max_depth[i]
+  
+  cv_model <- xgb.cv(
+    params = params, 
+    data = dtrain, 
+    nrounds = hyper_grid$nrounds[i],
+    nfold = 5,
+    showsd = T,
+    stratified = T,
+    print_every_n = 10,
+    early_stopping_rounds = 10,
+    maximize = F
+  )
+  
+  # Store the RMSE for the last round of cross-validation
+  results <- rbind(results, data.frame(
+    eta = hyper_grid$eta[i],
+    max_depth = hyper_grid$max_depth[i],
+    nrounds = hyper_grid$nrounds[i],
+    RMSE = tail(cv_model$evaluation_log$test_rmse_mean, 1)
+  ))
+}
+
+# Select the best parameters
+best_params <- results[which.min(results$RMSE), ]
+print(best_params)
+# Train the model with the best parameters. Best parameters are extracted and hard-coded.
+xgb_best_model <- xgboost(
+  data = dtrain,
+  params = list(
+    objective = "reg:squarederror",
+    eta = 0.1,
+    max_depth = 1,
+    gamma = 0,
+    colsample_bytree = 1,
+    min_child_weight = 1,
+    subsample = 1
+  ),
+  nrounds = 100
+)
+
+trainDataMatrix <- as.matrix(potential_CS[,-which(names(potential_CS) %in% "Rating")])
+dtrain <- xgb.DMatrix(data = trainDataMatrix)
+
+# Predict for new charging stations
+prediction_new<- predict(xgb_best_model, newdata = dtrain)
+
+critical_value <- 1.96
+lower_bound_95 <- prediction_new - critical_value * standard_error_xgb
+upper_bound_95 <- prediction_new + critical_value * standard_error_xgb
+
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error_xgb
+upper_bound_75 <- prediction_new + critical_value * standard_error_xgb
+
+final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+# Plotting the histogram of new predictions
+ggplot(final_xgb, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (XGBoost)") 
 
 
