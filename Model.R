@@ -663,13 +663,13 @@ xgb_best_model <- xgboost(
   params = list(
     objective = "reg:squarederror",
     eta = 0.1,
-    max_depth = 1,
+    max_depth = 5,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 100
+  nrounds = 500
 )
 
 trainDataMatrix <- as.matrix(potential_CS[,-which(names(potential_CS) %in% "Rating")])
@@ -693,4 +693,12 @@ ggplot(final_xgb, aes(x = prediction_new)) +
   xlim(0, 5) +
   labs(title = "Charging Station Ratings (XGBoost)") 
 
+# Variable importance
+importance_scores <- xgb.importance(feature_names = names(trainDataMatrix ), 
+                                    model = xgb_best_model)
 
+# View the importance scores
+print(importance_scores)
+
+# Export data frame to an Excel file
+write_xlsx(final_xgb, "potential_CS_final.xlsx") 
