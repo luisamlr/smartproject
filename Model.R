@@ -702,3 +702,5 @@ print(importance_scores)
 
 # Export data frame to an Excel file
 write_xlsx(final_xgb, "potential_CS_final.xlsx") 
+# Export data frame to an Excel file
+write_xlsx(importance_scores, "variable_importance.xlsx") 
