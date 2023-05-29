@@ -112,7 +112,7 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
+  ggtitle(paste("Correlation (GBM):", round(correlation_gmb, 2))) +
   xlim(1, 5)
 
 ###### RF - Model and estimation####
@@ -201,7 +201,7 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation (RF):", round(correlation, 2))) +
+  ggtitle(paste("Correlation (RF):", round(correlation_ranger , 2))) +
   xlim(1, 5)
 
 ###### XGB - Model and estimation####
@@ -302,7 +302,7 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
+  ggtitle(paste("Correlation (GBM):", round(correlation_xgb, 2))) +
   xlim(1, 5)
 
 ###### Model Ensembling#####
@@ -408,7 +408,7 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   geom_point() +
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  ggtitle(paste("Correlation:", round(correlation_ens, 2)))+
   xlim(0,5)
 
 ##### PCA #####
