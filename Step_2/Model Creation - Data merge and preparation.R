@@ -7,18 +7,20 @@
 #### MAINTENANCE INSTRUCTIONS ####
 #the last edit of this code took place on: (please update)
 last_edit <- "2023-05-28"
-
 ### to-dos: ###
 ##check the number of variables that have not been sorted into categories:
-#Step 1. run this code once (takes approx 7 minutes)
-#Step 2. check num_columns_between
-#Step 3. if num_columns_between is above 0, then open file "reshaped_poi_locations" from the environment
-#Step 4. find out the names of the columns that show up behind "charger_latitude" and before "Rating"
-#Step 5. sort these variables manually into one of the categories (starting in line 274)
-        #Alternatively:
-        # if you want to create a new category, also make sure to include it in the dplyr function in line 332
-        # if you wish to instead remove the variable add it in the vector in line 262
-#Step 6. run code again & repeat to check if anything was missed
+#Step 1. comment in the loops (lines 127-141, lines 157-162, lines 177-209)
+#Step 2. run this code once (takes approx 28 minutes)
+#Step 3. check num_columns_between
+#Step 4. if num_columns_between is above 0, then open file "reshaped_poi_locations" from the environment
+#Step 5. find out the names of the columns that show up behind "charger_latitude" and before "Rating"
+#Step 6. sort these variables manually into one of the categories (starting in line 299)
+         #Alternatively:
+         # if you want to create a new category, also make sure to include it in the dplyr function in line 357
+         # if you wish to instead remove the variable add it into the vector in line 287
+#Step 7. run code again & repeat to check if anything was missed
+#Step 8. comment the loops (lines 127-141, lines 157-162, lines 177-209) back out
+################################################################
 
 #### Step 1: loading relevant libraries and importing data ####
 ## Install and load the required packages
@@ -39,7 +41,7 @@ library(geosphere)
 ## Setting the working directory ##
 #setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject") #setwd("~/Maastricht University/smartproject")
 #setwd("~/Maastricht University/smartproject")
-setwd("/Users/isamahler/Desktop/SmartRProject/newsmart/Step_1")
+setwd("/Users/isamahler/Desktop/SmartRProject/smartproject_new/Step_1")
 
 
 ## Loading of the data sources ##
@@ -76,8 +78,8 @@ df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
 poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling.
 poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R.
 poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names, 
-                   renaming$New_names[match(poi_locations$type, renaming$Old_names)],
-                   poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
+                             renaming$New_names[match(poi_locations$type, renaming$Old_names)],
+                             poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
 
 ## CBS STATISTICS NETHERLANDS ##
 names(demog_data) <- make.names(names(demog_data)) # Fix column names to avoid problem on R.
@@ -122,19 +124,27 @@ n_rating <- c()
 avg3 <- c()
 avg5 <- c()
 avg10 <- c()
+# for (i in 1:nrow(df_cs)){
+#   # Find the nearest rating per CS
+#   n_rating[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs,1)
+#   # Find the avg 3 nearest rating per CS
+#   avg3[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 3)
+#   # Find the avg 5 nearest rating per CS
+#   avg5[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 5)
+#   # Find the avg 10 nearest rating per CS
+#   avg10[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 10)
+#   print(paste0("Calculating info for charger ", i," of ", nrow(df_cs)))
+# }
+# write.csv(n_rating, "n_rating.csv", row.names = FALSE)
+# write.csv(avg3, "avg3.csv", row.names = FALSE)
+# write.csv(avg5, "avg5.csv", row.names = FALSE)
+# write.csv(avg10, "avg10.csv", row.names = FALSE)
 
-for (i in 1:nrow(df_cs)){
-  # Find the nearest rating per CS
-  n_rating[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs,1)
-  # Find the avg 3 nearest rating per CS
-  avg3[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 3)
-  # Find the avg 5 nearest rating per CS
-  avg5[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 5)
-  # Find the avg 10 nearest rating per CS
-  avg10[i]<-rating_nearest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs, 10)
-  print(paste0("Calculating info for charger ", i," of ", nrow(df_cs)))
-}
-
+# If the above loop is commented out, use this output:
+n_rating2_csv <- read.csv("n_rating.csv"); n_rating <- as.numeric(n_rating2_csv[[1]])
+avg3_csv <- read.csv("avg3.csv"); avg3 <- as.numeric(avg3_csv[[1]]); avg3 <- round(avg3, 5)
+avg5_csv <- read.csv("avg5.csv"); avg5 <- as.numeric(avg5_csv[[1]]); avg5 <- round(avg5, 5)
+avg10_csv <- read.csv("avg10.csv"); avg10 <- as.numeric(avg10_csv[[1]]); avg10 <- round(avg10, 5)
 
 # Finding the closest charging stations, save the distance
 closest <- function(lat, lon, df_cs) {
@@ -143,56 +153,70 @@ closest <- function(lat, lon, df_cs) {
   return(head(df_sorted$Distance, n=1))
 }
 
-cls<-c()
-for (i in 1:nrow(df_cs)){
-  # avg_rating_3_nearest function for Station1
-  cls[i]<-closest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs)
-  print(paste0("Calculating info for charger ", i," of ", nrow(df_cs)))
-}
+cls <- c()
+# for (i in 1:nrow(df_cs)){
+#   # avg_rating_3_nearest function for Station1
+#   cls[i]<-closest(df_cs$Latitude[i], df_cs$Longitude[i], df_cs)
+#   print(paste0("Calculating info for charger ", i," of ", nrow(df_cs)))
+# }
+# write.csv(cls, "cls.csv", row.names = FALSE)
+
+# If the above loop is commented out, use this output:
+cls_csv <- read.csv("cls.csv"); cls <- as.numeric(cls_csv[[1]])
 
 ## Calculating how many stations are under 1000m, 500m and 200m
 # Import the dataset ---- We work with the whole dataset since we do not care whether they have review or not in order to take into account
-df_all<-read.csv("All_Chargers.csv")
-df_all<-df_all[df_all$Country=="Netherlands" ,]
+df_all <- read.csv("All_Chargers.csv")
+df_all <- df_all[df_all$Country=="Netherlands" ,]
 
 # initialize empty vector to store counts
 counts_1000 <- c()
 counts_500 <- c()
 counts_250 <- c()
-counts_100<-c()
-# loop over each row in the dataframe
+counts_100 <- c()
+## loop over each row in the dataframe
+# for (i in 1:nrow(df_all)) {
+#   # check if the row has a rating
+#   if ((df_all$Ratings.Total[i] > 0)) {
+#     # check if the row has a rating
+#     distances<-c()
+#     # calculate distance between this row and all other rows
+#     for (j in 1:nrow(df_all)){
+#       distances[j]<- distHaversine(c(df_all$Longitude[i], df_all$Latitude[i]), c(df_all$Longitude[j], df_all$Latitude[j]))
+#     }
+#     # count how many distances are less than 1000m
+#     count_1000 <- nrow(df_all[distances <= 1000,]) - 1 #Subtract 1 because otherwise we count the station itself
+#     # count how many distances are less than 500m
+#     count_500 <- nrow(df_all[distances <= 500,])  - 1 #Subtract 1 because otherwise we count the station itself
+#     # count how many distances are less than 250m
+#     count_250 <- nrow(df_all[distances <= 250,])  - 1 #Subtract 1 because otherwise we count the station itself
+#     # count how many distances are less than 100m
+#     count_100 <- nrow(df_all[distances <= 100,])  - 1 #Subtract 1 because otherwise we count the station itself
+#     # add count to vector
+#     counts_1000 <- c(counts_1000, count_1000)
+#     # add count to vector
+#     counts_500 <- c(counts_500, count_500)
+#     # add count to vector
+#     counts_250 <- c(counts_250, count_250)
+#     # add count to vector
+#     counts_100 <- c(counts_100, count_100)
+#   }
+#   print(paste0("Calculating info for charger ", i," of ", nrow(df_all)))
+# }
+# write.csv(counts_1000, "counts_1000.csv", row.names = FALSE)
+# write.csv(counts_500, "counts_500.csv", row.names = FALSE)
+# write.csv(counts_250, "counts_250.csv", row.names = FALSE)
+# write.csv(counts_100, "counts_100.csv", row.names = FALSE)
 
-for (i in 1:nrow(df_all)) {
-  # check if the row has a rating
-  if ((df_all$Ratings.Total[i] > 0)) {
-    # check if the row has a rating
-    distances<-c()
-    # calculate distance between this row and all other rows
-    for (j in 1:nrow(df_all)){
-      distances[j]<- distHaversine(c(df_all$Longitude[i], df_all$Latitude[i]), c(df_all$Longitude[j], df_all$Latitude[j]))
-    }
-    # count how many distances are less than 1000m
-    count_1000 <- nrow(df_all[distances <= 1000,]) - 1 #Subtract 1 because otherwise we count the station itself
-    # count how many distances are less than 500m
-    count_500 <- nrow(df_all[distances <= 500,])  - 1 #Subtract 1 because otherwise we count the station itself
-    # count how many distances are less than 250m
-    count_250 <- nrow(df_all[distances <= 250,])  - 1 #Subtract 1 because otherwise we count the station itself
-    # count how many distances are less than 100m
-    count_100 <- nrow(df_all[distances <= 100,])  - 1 #Subtract 1 because otherwise we count the station itself
-    # add count to vector
-    counts_1000<- c(counts_1000, count_1000)
-    # add count to vector
-    counts_500<- c(counts_500, count_500)
-    # add count to vector
-    counts_250<- c(counts_250, count_250)
-    # add count to vector
-    counts_100<- c(counts_100, count_100)
-  }
-  print(paste0("Calculating info for charger ", i," of ", nrow(df_all)))
-}
+# If the above loop is commented out, use this output:
+counts_1000_csv <- read.csv("counts_1000.csv"); counts_1000 <- as.numeric(counts_1000_csv[[1]])
+counts_500_csv <- read.csv("counts_500.csv"); counts_500 <- as.numeric(counts_500_csv[[1]])
+counts_250_csv <- read.csv("counts_250.csv"); counts_250 <- as.numeric(counts_250_csv[[1]])
+counts_100_csv <- read.csv("counts_100.csv"); counts_100 <- as.numeric(counts_100_csv[[1]])
 
 # Merging with previous information
 aggregate_rating <- cbind(df_cs, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
+
 
 #### Step 4: Further Cleaning of Data
 ## Eliminating duplicates
@@ -261,9 +285,9 @@ reshaped_poi_locations_old <- select(reshaped_poi_locations, -Name, -Address, -R
 # Discard variables that we deem irrelevant/if we are unable to explain them or are unsure about their meanings
 # We discard variables again below but with that being part of the "optional" section this is still necessary to ensure they are taken out
 variables_to_remove <- c("Name","Address","Reviews","Ratings.Total","Postal.Code","Street.Number","Route","Locality","Admin.Area.Level.1","Admin.Area.Level.2","Country","Phone.Number","Website","Opening.Hours","postal_trim",
-                       "Fac_afro","Fac_aq","Fac_awards","Fac_bell","Fac_disused","Fac_flo","Fac_general","Fac_grinding","Fac_information","Fac_mirror_setting_marks",
-                       "Fac_model","Fac_modeling","Fac_new_age","Fac_no","Fac_safe","Fac_sun","Fac_toko","Fac_trophy","Fac_vacant","Fac_voucher","Fac_webshop","Fac_yes",
-                       "Immigrants_western_total","Immigrants_other_total","Immigrants_Marokko","Immigrants_Dutch_Antilles_Aruba","Immigrants_Suriname","Immigrants_Turkey","Immigrants_other_non_western")
+                         "Fac_afro","Fac_aq","Fac_awards","Fac_bell","Fac_disused","Fac_flo","Fac_general","Fac_grinding","Fac_information","Fac_mirror_setting_marks",
+                         "Fac_model","Fac_modeling","Fac_new_age","Fac_no","Fac_safe","Fac_sun","Fac_toko","Fac_trophy","Fac_vacant","Fac_voucher","Fac_webshop","Fac_yes",
+                         "Immigrants_western_total","Immigrants_other_total","Immigrants_Marokko","Immigrants_Dutch_Antilles_Aruba","Immigrants_Suriname","Immigrants_Turkey","Immigrants_other_non_western")
 
 reshaped_poi_locations <- reshaped_poi_locations %>% 
   # Remove the specified columns from the dataframe
@@ -394,3 +418,4 @@ if (num_columns_between > 0) {
   message <- paste("There are", num_columns_between, "columns that have not been categorized and will not be used in our model. The last edit of the code took place on", last_edit, ".")
   print(message)
 }
+
