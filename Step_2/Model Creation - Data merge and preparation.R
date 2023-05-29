@@ -231,6 +231,9 @@ reshaped_poi_locations <- reshaped_poi_locations %>%
 reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(highway_dist, by = c("charger_longitude" = "charger_longitude", "charger_latitude" = "charger_latitude"))
 
+# Clean one column that is completely null (redundant for current version, could be important later)
+#reshaped_poi_locations <- reshaped_poi_locations[, !(colnames(reshaped_poi_locations) == "WijkenEnBuurten")]
+
 # Fixing variable names, to avoid problem with columns names starting with numbers. Cleaning rows with NAs.
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
 
