@@ -32,7 +32,7 @@ set.seed(42)  # Set seed for reproducibility
 
 # Import dataset
 df_model <- read_excel("reshaped_poi_locations.xlsx")
-potential_CS <- read_excel("potential_CS.xlsx")
+potential_CS <- read_excel("reshaped_poi_locations_potential.xlsx")
 
 # Function to obtain the same amount of columns
 add_missing_columns <- function(df1, df2) {
@@ -86,27 +86,34 @@ cat("RMSE:", min(gbm_model[["results"]][["RMSE"]]))
 # Fit the model with current parameter combination
 gbm_model <- gbm(Rating ~ ., data = trainData,
                  n.trees = 25,
-                 interaction.depth = 4,
+                 interaction.depth = 3,
                  shrinkage = 0.1)
 
 # Generate predictions for the Validation set (this has not been trained or tested yet)
 gbm_pred <- predict(gbm_model, newdata = testData, n.trees = 25)
 gmb_v_rmse <- sqrt(mean((testData$Rating - gbm_pred)^2))
+print(paste0("Test RMSE: ", gmb_v_rmse))
+# Calculate MAE on test data
+gmb_v_mae <- mean(abs(testData$Rating - gbm_pred))
+print(paste0("Test MAE: ", gmb_v_mae))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
                  Predicted = gbm_pred)
 
 # Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
+correlation_gmb <- cor(df$Actual, df$Predicted)
+
+mc_gmb<-c(gmb_v_rmse, gmb_v_mae, correlation_gmb)
 
 # Create the scatter plot
-ggplot(df, aes(x =Predicted , y = Actual)) +
+ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
-  xlim(0,5)
+  ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
+  xlim(1, 5)
 
 standard_error <- sd(df$Actual-df$Predicted)
 
@@ -122,6 +129,12 @@ lower_bound_75 <- prediction_new - critical_value * standard_error
 upper_bound_75 <- prediction_new + critical_value * standard_error
 
 final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+
+# Plotting the histogram of new predictions
+ggplot(final_GBM, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (GBM)") 
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -187,30 +200,38 @@ cat("RMSE:", best_rmse)
 # Fit the model with current parameter combination
 ranger_model <- ranger(Rating ~ ., data = trainData,
                        num.trees = 150,
-                       max.depth = 3)
+                       max.depth = 3,
+                       mtry = 2)
 
 # Generate predictions for the testing set
 ranger_pred <- predict(ranger_model, data = testData)$predictions
+ranger_v_rmse <- sqrt(mean((testData$Rating - ranger_pred)^2))
+print(paste0("Test RMSE: ", ranger_v_rmse))
+# Calculate MAE on test data
+ranger_v_mae <- mean(abs(testData$Rating - ranger_v_rmse))
+print(paste0("Test MAE: ", ranger_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = trainData$Rating,
+df <- data.frame(Actual = testData$Rating,
                  Predicted = ranger_pred)
 
 # Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
+correlation_ranger <- cor(df$Actual, df$Predicted)
+mc_ranger<-c(gmb_v_rmse, gmb_v_mae, correlation_ranger)
 
 # Create the scatter plot
-ggplot(df, aes(x =Predicted , y = Actual)) +
+ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
-  xlim(0,5)
+  ggtitle(paste("Correlation (RF):", round(correlation, 2))) +
+  xlim(1, 5)
 
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
-prediction_new<- predict(ranger_model, newdata = potential_CS, n.trees = 50)
+predictions_new <- predict(ranger_model, data = potential_CS, num.trees = 150)
 
 critical_value <- 1.96
 lower_bound_95 <- prediction_new - critical_value * standard_error
@@ -221,6 +242,12 @@ lower_bound_75 <- prediction_new - critical_value * standard_error
 upper_bound_75 <- prediction_new + critical_value * standard_error
 
 final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+
+# Plotting the histogram of new predictions
+ggplot(final_ranger, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (RF)") 
 
 # Export data frame to an Excel file
 # write_xlsx(final, "potential_CS_final.xlsx") 
@@ -233,7 +260,6 @@ trainLabels <- as.vector(trainData$Rating)
 
 # Convert the data into an xgb.DMatrix object
 dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
-
 
 # Define the grid
 hyper_grid <- expand.grid(
@@ -250,6 +276,7 @@ results <- data.frame(
   RMSE = numeric()
 )
 
+params<-c()
 # For each row in the grid, run a 5-fold cross-validation
 for(i in 1:nrow(hyper_grid)) {
   params$eta = hyper_grid$eta[i]
@@ -278,20 +305,20 @@ for(i in 1:nrow(hyper_grid)) {
 
 # Select the best parameters
 best_params <- results[which.min(results$RMSE), ]
-
+print(best_params)
 # Train the model with the best parameters. Best parameters are extracted and hard-coded.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
     eta = 0.1,
-    max_depth = 4,
+    max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 500
+  nrounds = 100
 )
 
 # Prepare the test data
@@ -299,36 +326,31 @@ testDataMatrix <- as.matrix(testData[,-which(names(testData) %in% "Rating")])
 dtest <- xgb.DMatrix(data = testDataMatrix)
 
 # Make predictions on test data
-xgb_preds <- predict(xgb_best_model, dtest)
+xgb_pred <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-rmse <- sqrt(mean((testData$Rating - xgb_preds)^2))
-print(paste0("Test RMSE: ", rmse))
-
-# Convert the predictors and targets into matrices
-trainDataMatrix <- as.matrix(df_model[,-which(names(df_model) %in% "Rating")])
-trainLabels <- as.vector(df_model$Rating)
-
-# Convert the data into an xgb.DMatrix object
-dtrain <- xgb.DMatrix(data = trainDataMatrix, label = trainLabels)
-# Generate predictions for the testing set
-xgb_pred <- predict(xgb_best_model, dtrain)
+xgb_v_rmse <- sqrt(mean((testData$Rating - xgb_pred)^2))
+print(paste0("Test RMSE: ", xgb_v_rmse))
+# Calculate MAE on test data
+xgb_v_mae <- mean(abs(testData$Rating - xgb_pred))
+print(paste0("Test RMSE: ", xgb_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = df_model$Rating,
+df <- data.frame(Actual = testData$Rating,
                  Predicted = xgb_pred )
 
 # Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
+correlation_xgb <- cor(df$Actual, df$Predicted)
+mc_xgb<-c(xgb_v_rmse, xgb_v_mae, correlation_xgb)
 
 # Create the scatter plot
-ggplot(df, aes(x =Predicted , y = Actual)) +
+ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
-  xlim(0,5)
-
+  ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
+  xlim(1, 5)
 
 standard_error <- sd(df$Actual-df$Predicted)
 
@@ -338,17 +360,21 @@ dtrain <- xgb.DMatrix(data = trainDataMatrix)
 prediction_new<- predict(xgb_best_model, newdata = dtrain)
 
 critical_value <- 1.96
-lower_bound <- prediction_new - critical_value * standard_error
-upper_bound <- prediction_new + critical_value * standard_error
-confidence_interval <- c(lower_bound, upper_bound)
+lower_bound_95 <- prediction_new - critical_value * standard_error
+upper_bound_95 <- prediction_new + critical_value * standard_error
 
-final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound, upper_bound)
+critical_value <- 1.036 
+lower_bound_75 <- prediction_new - critical_value * standard_error
+upper_bound_75 <- prediction_new + critical_value * standard_error
+
+final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+# Plotting the histogram of new predictions
+ggplot(final_xgb, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (XGBoost)") 
 
 ###### Model Ensambling#####
-library(caret)
-library(ranger)
-library(gbm)
-
 # Define the parameter grid
 parameter_grid <- expand.grid(num.trees = c(50, 100, 150),
                               max.depth = c(2, 3),
@@ -421,7 +447,7 @@ print(best_params)
 cat("RMSE:", best_rmse)
 
 # Model estimation
-ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 100,
+ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 150,
                        max.depth = 3, mtry = 3)
 gbm_model <- gbm(Rating ~ ., data = trainData,
                  n.trees = 150,
@@ -431,11 +457,11 @@ ranger_pred <- predict(ranger_model, data = testData)$predictions
 gbm_pred <- predict.gbm(gbm_model, newdata = testData, n.trees = parameter_grid$n.trees[i])
 
 prediction_together <- (ranger_pred + gbm_pred) / 2
-rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
+ens_v_rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
-                 Predicted = gbm_pred)
+                 Predicted = prediction_together)
 
 # Calculate the correlation
 correlation <- cor(df$Actual, df$Predicted)
@@ -451,12 +477,12 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
 standard_error <- sd(df$Actual-df$Predicted)
 
 # Predict for new charging stations
-ranger_pred <- predict(ranger_model, data = potential_CS)$predictions
-gbm_pred <- predict.gbm(gbm_model, newdata =potential_CS, n.trees = parameter_grid$n.trees[i])
+ranger_pred <- predict(ranger_model, newdata = potential_CS)$predictions
+gbm_pred <- predict.gbm(gbm_model, newdata = potential_CS, n.trees = parameter_grid$n.trees[i])
 
 prediction_together <- (ranger_pred + gbm_pred) / 2
 critical_value <- 1.96
-lower_bound_95 <- pprediction_together - critical_value * standard_error
+lower_bound_95 <- prediction_together - critical_value * standard_error
 upper_bound_95 <- prediction_together + critical_value * standard_error
 
 critical_value <- 1.036 
@@ -464,6 +490,11 @@ lower_bound_75 <- prediction_together - critical_value * standard_error
 upper_bound_75 <- prediction_together + critical_value * standard_error
 
 final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+# Plotting the histogram of new predictions
+ggplot(final_ensembling, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (Ensambling)") 
 
 ##### PCA #####
 df <- df_model
@@ -483,18 +514,35 @@ predictors <- scale(predictors)
 # Perform PCA
 pca <- prcomp(predictors, center = TRUE, scale. = TRUE)
 
-# Determine the number of components needed to explain 90% of the variance
-explained_variance <- summary(pca)$importance[2,]
-plot(explained_variance)
-num_components <- which(cumsum(explained_variance) >= 0.70)[1]
-# Since we need 84 PCs to capture at least 70% of the variance, using PCs doesn't look helpful
+# Determine the explained variance for each principal component
+explained_variance <- summary(pca)$importance[2, ]
+num_components <- length(explained_variance)
+
+# Calculate the cumulative sum of explained variance
+cumulative_variance <- cumsum(explained_variance)
+
+# Create a plot of cumulative explained variance
+plot(1:num_components, cumulative_variance, type = "b", 
+     xlab = "Number of Components", ylab = "Cumulative Explained Variance",
+     main = "Cumulative Variance Explained by Principal Components", pch = 19)
+
+# Add a horizontal line at 90% cumulative explained variance
+abline(h = 0.9, col = "red", lty = 2)
+
+# Add a legend
+legend("bottomright", legend = c("Cumulative Explained Variance", "90% Threshold"),
+       col = c("black", "red"), lty = c(1, 2), pch = c(19, NA))
+
+
+num_components <- which(cumsum(explained_variance) >= 0.90)[1]
+# Since we need 191 PCs to capture at least 90% of the variance, using PCs doesn't look helpful
 
 PCs <- pca$x[, 1:num_components]
 # Convert the PCs into a data frame
 PCs_df <- as.data.frame(PCs)
 
 df <- cbind(PCs_df, target)
-colnames(df)[85] <- "Rating"
+colnames(df)[192] <- "Rating"
 splitIndex <- createDataPartition(df$Rating, p = .9, 
                                   list = FALSE, 
                                   times = 1)
@@ -553,13 +601,14 @@ for(i in 1:nrow(hyper_grid)) {
 
 # Select the best parameters
 best_params <- results[which.min(results$RMSE), ]
+best_params
 
 # Train the model with the best parameters. Extracted and hard-coded.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.3,
+    eta = 0.1,
     max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
@@ -577,6 +626,52 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-rmse <- sqrt(mean((testData$Rating - preds)^2))
-print(paste0("Test RMSE: ", rmse))
-## RMSE is 1.63
+pca_rmse <- sqrt(mean((testData$Rating - preds)^2))
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = testData$Rating,
+                 Predicted = preds)
+
+# Calculate the correlation
+correlation <- cor(df$Actual, df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x =Predicted , y = Actual)) +
+  geom_point() +
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
+  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  xlim(0,5)
+
+standard_error <- sd(df$Actual-df$Predicted)
+
+
+# Predict for new charging stations
+pca_potential<-potential_CS[,-which(names(potential_CS) %in% "Rating")]
+prediction_new<- predict(pca, newdata = pca_potential)
+trainDataMatrix <- as.matrix(prediction_new[,num_components])
+dtrain <- xgb.DMatrix(data = trainDataMatrix)
+prediction_new<- predict(xgb_best_model, newdata = dtrain)
+
+critical_value <- 1.96
+lower_bound_95 <- prediction_together - critical_value * standard_error
+upper_bound_95 <- prediction_together + critical_value * standard_error
+
+critical_value <- 1.036 
+lower_bound_75 <- prediction_together - critical_value * standard_error
+upper_bound_75 <- prediction_together + critical_value * standard_error
+
+final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
+# Plotting the histogram of new predictions
+ggplot(final_ensembling, aes(x = prediction_new)) +
+  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
+  xlim(0, 5) +
+  labs(title = "Charging Station Ratings (PCA)")
+
+###### Model Comparison and Selection#####
+
+model_comparison<-cbind(mc_gmb,mc_ranger, mc_xgb)
+model_comparison
+
+
+
