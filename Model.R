@@ -571,7 +571,6 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-<<<<<<< HEAD:Model.R
 pca_rmse <- sqrt(mean((testData$Rating - preds)^2))
 
 # Create a data frame with the actual and predicted ratings
