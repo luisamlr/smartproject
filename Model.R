@@ -115,30 +115,6 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
   xlim(1, 5)
 
-standard_error <- sd(df$Actual-df$Predicted)
-
-# Predict for new charging stations
-prediction_new<- predict(gbm_model, newdata = potential_CS, n.trees = 25)
-
-critical_value <- 1.96
-lower_bound_95 <- prediction_new - critical_value * standard_error
-upper_bound_95 <- prediction_new + critical_value * standard_error
-
-critical_value <- 1.036 
-lower_bound_75 <- prediction_new - critical_value * standard_error
-upper_bound_75 <- prediction_new + critical_value * standard_error
-
-final_GBM<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
-
-# Plotting the histogram of new predictions
-ggplot(final_GBM, aes(x = prediction_new)) +
-  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
-  xlim(0, 5) +
-  labs(title = "Charging Station Ratings (GBM)") 
-
-# Export data frame to an Excel file
-# write_xlsx(final, "potential_CS_final.xlsx") 
-
 ###### RF - Model and estimation####
 
 # Define the parameter grid
@@ -208,7 +184,7 @@ ranger_pred <- predict(ranger_model, data = testData)$predictions
 ranger_v_rmse <- sqrt(mean((testData$Rating - ranger_pred)^2))
 print(paste0("Test RMSE: ", ranger_v_rmse))
 # Calculate MAE on test data
-ranger_v_mae <- mean(abs(testData$Rating - ranger_v_rmse))
+ranger_v_mae <- mean(abs(testData$Rating - ranger_pred))
 print(paste0("Test MAE: ", ranger_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
@@ -217,7 +193,7 @@ df <- data.frame(Actual = testData$Rating,
 
 # Calculate the correlation
 correlation_ranger <- cor(df$Actual, df$Predicted)
-mc_ranger<-c(gmb_v_rmse, gmb_v_mae, correlation_ranger)
+mc_ranger<-c(ranger_v_rmse, ranger_v_mae, correlation_ranger)
 
 # Create the scatter plot
 ggplot(df, aes(x = Predicted, y = Actual)) +
@@ -227,30 +203,6 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   ylab("Actual Ratings") +
   ggtitle(paste("Correlation (RF):", round(correlation, 2))) +
   xlim(1, 5)
-
-standard_error <- sd(df$Actual-df$Predicted)
-
-# Predict for new charging stations
-predictions_new <- predict(ranger_model, data = potential_CS, num.trees = 150)
-
-critical_value <- 1.96
-lower_bound_95 <- prediction_new - critical_value * standard_error
-upper_bound_95 <- prediction_new + critical_value * standard_error
-
-critical_value <- 1.036 
-lower_bound_75 <- prediction_new - critical_value * standard_error
-upper_bound_75 <- prediction_new + critical_value * standard_error
-
-final_ranger<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
-
-# Plotting the histogram of new predictions
-ggplot(final_ranger, aes(x = prediction_new)) +
-  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
-  xlim(0, 5) +
-  labs(title = "Charging Station Ratings (RF)") 
-
-# Export data frame to an Excel file
-# write_xlsx(final, "potential_CS_final.xlsx") 
 
 ###### XGB - Model and estimation####
 
@@ -352,29 +304,7 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   ggtitle(paste("Correlation (GBM):", round(correlation, 2))) +
   xlim(1, 5)
 
-standard_error <- sd(df$Actual-df$Predicted)
-
-trainDataMatrix <- as.matrix(potential_CS[,-which(names(potential_CS) %in% "Rating")])
-dtrain <- xgb.DMatrix(data = trainDataMatrix)
-# Predict for new charging stations
-prediction_new<- predict(xgb_best_model, newdata = dtrain)
-
-critical_value <- 1.96
-lower_bound_95 <- prediction_new - critical_value * standard_error
-upper_bound_95 <- prediction_new + critical_value * standard_error
-
-critical_value <- 1.036 
-lower_bound_75 <- prediction_new - critical_value * standard_error
-upper_bound_75 <- prediction_new + critical_value * standard_error
-
-final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
-# Plotting the histogram of new predictions
-ggplot(final_xgb, aes(x = prediction_new)) +
-  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
-  xlim(0, 5) +
-  labs(title = "Charging Station Ratings (XGBoost)") 
-
-###### Model Ensambling#####
+###### Model Ensembling#####
 # Define the parameter grid
 parameter_grid <- expand.grid(num.trees = c(50, 100, 150),
                               max.depth = c(2, 3),
@@ -447,8 +377,8 @@ print(best_params)
 cat("RMSE:", best_rmse)
 
 # Model estimation
-ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 150,
-                       max.depth = 3, mtry = 3)
+ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 100,
+                       max.depth = 3, mtry = 2)
 gbm_model <- gbm(Rating ~ ., data = trainData,
                  n.trees = 150,
                  interaction.depth = 3,
@@ -458,13 +388,17 @@ gbm_pred <- predict.gbm(gbm_model, newdata = testData, n.trees = parameter_grid$
 
 prediction_together <- (ranger_pred + gbm_pred) / 2
 ens_v_rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
+# Calculate MAE on test data
+ens_v_mae <- mean(abs(testData$Rating - prediction_together))
+print(paste0("Test MAE: ", ranger_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
                  Predicted = prediction_together)
 
 # Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
+correlation_ens <- cor(df$Actual, df$Predicted)
+mc_ens<-c(ens_v_rmse, ens_v_mae, correlation_ens)
 
 # Create the scatter plot
 ggplot(df, aes(x =Predicted , y = Actual)) +
@@ -473,28 +407,6 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   ylab("Actual Ratings") +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
   xlim(0,5)
-
-standard_error <- sd(df$Actual-df$Predicted)
-
-# Predict for new charging stations
-ranger_pred <- predict(ranger_model, newdata = potential_CS)$predictions
-gbm_pred <- predict.gbm(gbm_model, newdata = potential_CS, n.trees = parameter_grid$n.trees[i])
-
-prediction_together <- (ranger_pred + gbm_pred) / 2
-critical_value <- 1.96
-lower_bound_95 <- prediction_together - critical_value * standard_error
-upper_bound_95 <- prediction_together + critical_value * standard_error
-
-critical_value <- 1.036 
-lower_bound_75 <- prediction_together - critical_value * standard_error
-upper_bound_75 <- prediction_together + critical_value * standard_error
-
-final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
-# Plotting the histogram of new predictions
-ggplot(final_ensembling, aes(x = prediction_new)) +
-  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
-  xlim(0, 5) +
-  labs(title = "Charging Station Ratings (Ensambling)") 
 
 ##### PCA #####
 df <- df_model
@@ -643,34 +555,9 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   ggtitle(paste("Correlation:", round(correlation, 2)))+
   xlim(0,5)
 
-standard_error <- sd(df$Actual-df$Predicted)
-
-
-# Predict for new charging stations
-pca_potential<-potential_CS[,-which(names(potential_CS) %in% "Rating")]
-prediction_new<- predict(pca, newdata = pca_potential)
-trainDataMatrix <- as.matrix(prediction_new[,num_components])
-dtrain <- xgb.DMatrix(data = trainDataMatrix)
-prediction_new<- predict(xgb_best_model, newdata = dtrain)
-
-critical_value <- 1.96
-lower_bound_95 <- prediction_together - critical_value * standard_error
-upper_bound_95 <- prediction_together + critical_value * standard_error
-
-critical_value <- 1.036 
-lower_bound_75 <- prediction_together - critical_value * standard_error
-upper_bound_75 <- prediction_together + critical_value * standard_error
-
-final_ensembling<-cbind(potential_CS, Prediction = prediction_together, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
-# Plotting the histogram of new predictions
-ggplot(final_ensembling, aes(x = prediction_new)) +
-  geom_histogram(binwidth = 0.10, color = "black", fill = "lightblue") +
-  xlim(0, 5) +
-  labs(title = "Charging Station Ratings (PCA)")
-
 ###### Model Comparison and Selection#####
 
-model_comparison<-cbind(mc_gmb,mc_ranger, mc_xgb)
+model_comparison<-cbind(mc_gmb,mc_ranger, mc_xgb, mc_ens)
 model_comparison
 
 
