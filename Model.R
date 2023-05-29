@@ -424,7 +424,7 @@ training_target <- training_data[[target_var]]
 testing_features <- testing_data[, !(names(testing_data) %in% target_var)]
 testing_target <- testing_data[[target_var]]
 
-<<<<<<< HEAD:Model.R
+
 # Determine the explained variance for each principal component
 explained_variance <- summary(pca)$importance[2, ]
 num_components <- length(explained_variance)
@@ -447,25 +447,24 @@ legend("bottomright", legend = c("Cumulative Explained Variance", "90% Threshold
 
 num_components <- which(cumsum(explained_variance) >= 0.90)[1]
 # Since we need 191 PCs to capture at least 90% of the variance, using PCs doesn't look helpful
-=======
+
 # Check for columns with zero variance in the training data
 zero_var_cols <- nearZeroVar(training_features, saveMetrics = TRUE)
->>>>>>> 997ba16bfb8d3bb4260509ec75891cfd2b08284f:Model Estimation - Roger.R
 
 # Keep only columns with variance not equal to zero
 training_features <- training_features[, zero_var_cols$nzv == FALSE]
 testing_features <- testing_features[, names(testing_features) %in% names(training_features)]
 
-<<<<<<< HEAD:Model.R
+
 df <- cbind(PCs_df, target)
 colnames(df)[192] <- "Rating"
 splitIndex <- createDataPartition(df$Rating, p = .9, 
                                   list = FALSE, 
                                   times = 1)
-=======
+
 # Standardize the training data
 training_features <- scale(training_features)
->>>>>>> 997ba16bfb8d3bb4260509ec75891cfd2b08284f:Model Estimation - Roger.R
+
 
 # Save center and scale of the training data
 training_center <- attr(training_features, "scaled:center")
@@ -597,8 +596,7 @@ model_comparison
 
 
 
-=======
+
 rmse <- sqrt(mean((transformed_testing_data$Rating - preds)^2))
 print(paste0("Test RMSE: ", rmse))
 ## RMSE is 1.44
->>>>>>> 997ba16bfb8d3bb4260509ec75891cfd2b08284f:Model Estimation - Roger.R
