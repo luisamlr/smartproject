@@ -1,10 +1,20 @@
-##### ETL - Data for Model Creation #####
+################################################################
+#### Smart Project: ETL - Data for Model Creation ####
+################################################################
 
-# The objective of this file is to aggregate all the different data sources extracted from the step before
-# and make the neccesary transformations to create the models.
+# Objective: to aggregate all the different data sources extracted from the step 
+# before and make the neccesary transformations to create the models.
 
-# Install and load the required packages
+#### MAINTENANCE INSTRUCTIONS ####
+#the last edit of this code took place on: (please update)
+last_edit <- "2023-05-28"
+### to-dos: ###
+##check the number of variables that have not been sorted into categories:
+#Step 1. 
+################################################################
 
+#### Step 1: loading relevant libraries and importing data ####
+## Install and load the required packages
 library(caTools)
 library(randomForest)
 library(dplyr)
@@ -22,30 +32,24 @@ library(httr)
 library(jsonlite)
 library(dplyr)
 
-# Set the working directory.
+## Setting the working directory ##
 setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject")
 #setwd("~/Maastricht University/smartproject")
 
-########### LOADING DATA SOURCES ###########
+## Loading of the data sources ##
+# All chargers locations, from Google Maps:
+df_all <- read.csv("Step_1/All_Chargers.csv") # All Chargers, File loading
+df_cs <- df_all[df_all$Ratings.Total>0,]
+df_cs <- df_cs[df_cs$Country=="Netherlands" ,]
 
-#### AUXILIARY FILES ####
-renaming <- read_excel("renaming.xlsx") # Vairable names maintenance.
+# Distance to the closes highway, from Google maps:
+#highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway
+#highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway) # Selecting only used columns
 
-#### GOOGLE MAPS ####
-
-df_all <- read.csv("Step_1/All_Chargers.csv") # All Chargers, File loading.
-df_cs<- df_all[df_all$Ratings.Total>0,]
-df_cs<- df_cs[df_cs$Country=="Netherlands" ,]
-
-#highway_dist <- read.csv("highway_dist.csv") # Distance to the closes highway.
-#highway_dist <- select(highway_dist,charger_longitude,charger_latitude,highway) # Selecting only used columns.
-
-#### OPEN STREET MAP ####
-
-# Facilities around chargers #
-poi_locations <- read.xlsx("facilities_around_coordinates_parking.xlsx") # File loading.
-poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling.
-poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R.
+# Facilities around chargers, from OpenStreetMap:
+poi_locations <- read.xlsx("facilities_around_coordinates_parking.xlsx") # File loading
+poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling
+poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R
 poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names, 
                              renaming$New_names[match(poi_locations$type, renaming$Old_names)],
                              poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
@@ -57,23 +61,26 @@ reshaped_poi_locations_pred <- poi_locations  %>%
   ungroup() %>%
   spread(key = type, value = count, fill = 0)
 
-# Adding postal code, city and country.
-potential_info <- read.csv("parking_spots_maastricht.csv") # File loading.
+# Adding postal code, city and country
+potential_info <- read.csv("parking_spots_maastricht.csv") # File loading
 
-#### CBS STATISTICS NETHERLANDS ####
-
-demog_data <- read_excel("CBS.xlsx") # File loading.
-names(demog_data) <- make.names(names(demog_data)) # Fix column names to avoid problem on R.
-demog_data_names <- colnames(demog_data) # Saving column names.
+# Demographic information for every Dutch postal code, From CBS Statistics Netherlands:
+demog_data <- read_excel("CBS.xlsx") # File loading
+names(demog_data) <- make.names(names(demog_data)) # Fix column names to avoid problem on R
+demog_data_names <- colnames(demog_data) # Saving column names
 indices <- match(demog_data_names, renaming$Old_names) # Find the indices of demog_data_names in renaming$Old_names
 demog_data_names <- ifelse(!is.na(indices), renaming$New_names[indices], demog_data_names) # If there's a match, replace with renaming$New_names, else keep the original name
 names(demog_data) <- demog_data_names # Assign the new column names to demog_data
-demog_data <- demog_data[, !(colnames(demog_data) == "WijkenEnBuurten")] # Clean one column that is completely null.
+demog_data <- demog_data[, !(colnames(demog_data) == "WijkenEnBuurten")] # Clean one column that is completely null
 demog_data$StringValue <- as.numeric(demog_data$StringValue)
 
-#### COORDINATES DECIMAL CORRECTION ####
+# Auxiliary file:
+renaming <- read_excel("renaming.xlsx") # Vairable names maintenance
 
-# Standardization of decimal coordinates in all files, to avoid problems when joining information.
+
+#### Step 2: Data cleaning ####
+## COORDINATES DECIMAL CORRECTION ##
+# Standardization of decimal coordinates in all files, to avoid problems when joining information
 poi_locations$latitude <- round(as.numeric(poi_locations$latitude),7)
 poi_locations$longitude <- round(as.numeric(poi_locations$longitude),7)
 poi_locations$charger_latitude <- round(as.numeric(poi_locations$charger_latitude),7)
@@ -85,13 +92,11 @@ df_cs$Longitude <- round(as.numeric(df_cs$Longitude),7)
 potential_info$latitude <- round(as.numeric(potential_info$latitude),7)
 potential_info$longitude <- round(as.numeric(potential_info$longitude),7)
 
-
 reshaped_poi_locations_pred <- left_join(reshaped_poi_locations_pred, select(potential_info, longitude, latitude, postal_code, city, country), by = c("charger_longitude" = "longitude", "charger_latitude" = "latitude"))
 reshaped_poi_locations_pred <- reshaped_poi_locations_pred %>% filter(country == "Nederland")
 
 
-########### CALCULATING AVERAGE RATINGS ###########
-
+#### Step 3: calculating average ratings ####
 # Data cleaning #
 # Select only those stations with review and inside the Netherlands
 df_all<- df_all[df_all$Country=="Netherlands" ,]
@@ -163,20 +168,20 @@ n_rating <- c()
 avg3 <- c()
 avg5 <- c()
 avg10 <- c()
-
 for (i in 1:nrow(reshaped_poi_locations_pred)){
   # Find the nearest rating per CS
-  n_rating[i]<-rating_nearest(reshaped_poi_locations_pred$charger_latitude[i],reshaped_poi_locations_pred$charger_longitude[i], df_limburg,1)
+  n_rating[i] <- rating_nearest(reshaped_poi_locations_pred$charger_latitude[i],reshaped_poi_locations_pred$charger_longitude[i], df_limburg,1)
   # Find the avg 3 nearest rating per CS
-  avg3[i]<-rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 3)
+  avg3[i] <- rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 3)
   # Find the avg 5 nearest rating per CS
-  avg5[i]<-rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 5) 
+  avg5[i] <- rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 5) 
   # Find the avg 10 nearest rating per CS
-  avg10[i]<-rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 10)
+  avg10[i] <- rating_nearest(reshaped_poi_locations_pred$charger_latitude[i], reshaped_poi_locations_pred$charger_longitude[i], df_limburg, 10)
   print(paste0("Calculating info for charger ", i," of ", nrow(reshaped_poi_locations_pred)))
   }
 
-reshaped_poi_locations_pred<-cbind(reshaped_poi_locations_pred, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
+#### Step 4: merging all of the above into one df ####
+reshaped_poi_locations_pred <- cbind(reshaped_poi_locations_pred, n_rating, avg3,avg5, avg10, counts_100, counts_250, counts_500, counts_1000)
 
 # Extract first 4 characters from the "postcode" column
 reshaped_poi_locations_pred$postcode <- as.numeric(substr(reshaped_poi_locations_pred$postal_code, 1, 4))
@@ -195,8 +200,9 @@ reshaped_poi_locations_pred <- reshaped_poi_locations_pred[, !(colnames(reshaped
 reshaped_poi_locations_pred <- reshaped_poi_locations_pred %>%
   left_join(demog_data, by = c("postcode" = "StringValue"))
 
-#### HIGHWAY DISTANCE ####
 
+
+#### Step 5: HIGHWAY DISTANCE ####
 get_nearest_highway <- function(latitude, longitude) {
   overpass_api_url <- "https://overpass-api.de/api/interpreter"
   
@@ -250,7 +256,6 @@ nearest_highway_distance <- function(latitude, longitude) {
       print(paste0("Extracting highway info from OpenStreetMap's Map ",i ,"/",nrow(highways$elements)))
     }
   }
-  
   return(min_distance)
 }
 
@@ -261,8 +266,11 @@ highway_dist <- highway_dist %>%
   mutate(highway_dist = nearest_highway_distance(charger_latitude, charger_longitude))
 highway_dist$highway <- ifelse(highway_dist$highway_dist <=1000, 1, 0)
 
+#### Step 6: Join together ####
 reshaped_poi_locations_pred <- left_join(reshaped_poi_locations_pred, select(highway_dist, charger_longitude, charger_latitude, highway), by = c("charger_longitude", "charger_latitude"))
 
+
+#### Step 7: Adjustments of dataframe ####
 # Get column names of the two tables
 columns_reshaped_poi_locations <- colnames(reshaped_poi_locations)
 columns_reshaped_poi_locations_pred <- colnames(reshaped_poi_locations_pred)
