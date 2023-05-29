@@ -92,10 +92,10 @@ gbm_model <- gbm(Rating ~ ., data = trainData,
 # Generate predictions for the Validation set (this has not been trained or tested yet)
 gbm_pred <- predict(gbm_model, newdata = testData, n.trees = 25)
 gmb_v_rmse <- sqrt(mean((testData$Rating - gbm_pred)^2))
-print(paste0("Test RMSE: ", gmb_v_rmse))
+print(paste0("Validation RMSE: ", gmb_v_rmse))
 # Calculate MAE on test data
 gmb_v_mae <- mean(abs(testData$Rating - gbm_pred))
-print(paste0("Test MAE: ", gmb_v_mae))
+print(paste0("Validation MAE: ", gmb_v_mae))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
@@ -182,10 +182,10 @@ ranger_model <- ranger(Rating ~ ., data = trainData,
 # Generate predictions for the testing set
 ranger_pred <- predict(ranger_model, data = testData)$predictions
 ranger_v_rmse <- sqrt(mean((testData$Rating - ranger_pred)^2))
-print(paste0("Test RMSE: ", ranger_v_rmse))
+print(paste0("Validation RMSE: ", ranger_v_rmse))
 # Calculate MAE on test data
 ranger_v_mae <- mean(abs(testData$Rating - ranger_pred))
-print(paste0("Test MAE: ", ranger_v_mae ))
+print(paste0("Validation MAE: ", ranger_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
@@ -282,10 +282,10 @@ xgb_pred <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
 xgb_v_rmse <- sqrt(mean((testData$Rating - xgb_pred)^2))
-print(paste0("Test RMSE: ", xgb_v_rmse))
+print(paste0("Validation RMSE: ", xgb_v_rmse))
 # Calculate MAE on test data
 xgb_v_mae <- mean(abs(testData$Rating - xgb_pred))
-print(paste0("Test RMSE: ", xgb_v_mae ))
+print(paste0("Validation MAE: ", xgb_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
@@ -386,11 +386,13 @@ gbm_model <- gbm(Rating ~ ., data = trainData,
 ranger_pred <- predict(ranger_model, data = testData)$predictions
 gbm_pred <- predict.gbm(gbm_model, newdata = testData, n.trees = parameter_grid$n.trees[i])
 
+# Calculate RMSE on test data
 prediction_together <- (ranger_pred + gbm_pred) / 2
 ens_v_rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
+print(paste0("Test RSME: ", ens_v_rmse))
 # Calculate MAE on test data
 ens_v_mae <- mean(abs(testData$Rating - prediction_together))
-print(paste0("Test MAE: ", ranger_v_mae ))
+print(paste0("Test MAE: ", ens_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
@@ -476,10 +478,10 @@ pca_model <- prcomp(training_features)
 # Print summary of the PCA model
 print(summary(pca_model))
 
-# Identify the number of principal components needed to explain at least 80% of the variance
+# Identify the number of principal components needed to explain at least 90% of the variance
 explained_variance_ratio <- pca_model$sdev^2 / sum(pca_model$sdev^2)
 cumulative_explained_variance <- cumsum(explained_variance_ratio)
-num_components <- which(cumulative_explained_variance >= 0.80)[1]
+num_components <- which(cumulative_explained_variance >= 0.90)[1]
 
 # Now let's apply this transformation to the test data.
 # First, we need to standardize the test data using the mean and sd of the training data.
@@ -553,14 +555,14 @@ xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.1,
+    eta = 0.2,
     max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 250
+  nrounds = 70
 )
 
 # Prepare the test data
@@ -571,14 +573,20 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-pca_rmse <- sqrt(mean((testData$Rating - preds)^2))
+pca_v_rmse <- sqrt(mean((testData$Rating - preds)^2))
+pca_v_rmse
+# Calculate MAE on test data
+pca_v_mae <- mean(abs(testData$Rating - preds))
+print(paste0("Validation MAE: ", pca_v_mae))
 
 # Create a data frame with the actual and predicted ratings
 df <- data.frame(Actual = testData$Rating,
                  Predicted = preds)
 
 # Calculate the correlation
-correlation <- cor(df$Actual, df$Predicted)
+correlation_pca <- cor(df$Actual, df$Predicted)
+
+mc_pca<-c(pca_v_rmse, pca_v_mae, correlation_pca)
 
 # Create the scatter plot
 ggplot(df, aes(x =Predicted , y = Actual)) +
@@ -590,12 +598,7 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
 
 ###### Model Comparison and Selection#####
 
-model_comparison<-cbind(mc_gmb,mc_ranger, mc_xgb, mc_ens)
+model_comparison<-cbind(GBM = mc_gmb, RF = mc_ranger, XGB = mc_xgb, "ENS(RF/GBM)" = mc_ens, PCA = mc_pca)
 model_comparison
 
 
-
-
-rmse <- sqrt(mean((transformed_testing_data$Rating - preds)^2))
-print(paste0("Test RMSE: ", rmse))
-## RMSE is 1.44
