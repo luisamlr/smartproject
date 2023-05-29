@@ -264,13 +264,13 @@ xgb_best_model <- xgboost(
   params = list(
     objective = "reg:squarederror",
     eta = 0.1,
-    max_depth = 1,
+    max_depth = 4,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 100
+  nrounds = 250
 )
 
 # Prepare the test data
@@ -427,30 +427,6 @@ training_target <- training_data[[target_var]]
 testing_features <- testing_data[, !(names(testing_data) %in% target_var)]
 testing_target <- testing_data[[target_var]]
 
-
-# Determine the explained variance for each principal component
-explained_variance <- summary(pca)$importance[2, ]
-num_components <- length(explained_variance)
-
-# Calculate the cumulative sum of explained variance
-cumulative_variance <- cumsum(explained_variance)
-
-# Create a plot of cumulative explained variance
-plot(1:num_components, cumulative_variance, type = "b", 
-     xlab = "Number of Components", ylab = "Cumulative Explained Variance",
-     main = "Cumulative Variance Explained by Principal Components", pch = 19)
-
-# Add a horizontal line at 90% cumulative explained variance
-abline(h = 0.9, col = "red", lty = 2)
-
-# Add a legend
-legend("bottomright", legend = c("Cumulative Explained Variance", "90% Threshold"),
-       col = c("black", "red"), lty = c(1, 2), pch = c(19, NA))
-
-
-num_components <- which(cumsum(explained_variance) >= 0.90)[1]
-# Since we need 191 PCs to capture at least 90% of the variance, using PCs doesn't look helpful
-
 # Check for columns with zero variance in the training data
 zero_var_cols <- nearZeroVar(training_features, saveMetrics = TRUE)
 
@@ -458,16 +434,8 @@ zero_var_cols <- nearZeroVar(training_features, saveMetrics = TRUE)
 training_features <- training_features[, zero_var_cols$nzv == FALSE]
 testing_features <- testing_features[, names(testing_features) %in% names(training_features)]
 
-
-df <- cbind(PCs_df, target)
-colnames(df)[192] <- "Rating"
-splitIndex <- createDataPartition(df$Rating, p = .9, 
-                                  list = FALSE, 
-                                  times = 1)
-
 # Standardize the training data
 training_features <- scale(training_features)
-
 
 # Save center and scale of the training data
 training_center <- attr(training_features, "scaled:center")
@@ -476,13 +444,26 @@ training_scale <- attr(training_features, "scaled:scale")
 # Fit PCA on the training data
 pca_model <- prcomp(training_features)
 
-# Print summary of the PCA model
-print(summary(pca_model))
 
-# Identify the number of principal components needed to explain at least 90% of the variance
+# Identify the number of principal components needed to explain at least 80% of the variance
 explained_variance_ratio <- pca_model$sdev^2 / sum(pca_model$sdev^2)
 cumulative_explained_variance <- cumsum(explained_variance_ratio)
-num_components <- which(cumulative_explained_variance >= 0.90)[1]
+num_components <- length(explained_variance_ratio)
+
+# Create a plot of cumulative explained variance
+plot(1:num_components, cumulative_explained_variance, type = "b", 
+     xlab = "Number of Components", ylab = "Cumulative Explained Variance",
+     main = "Cumulative Variance Explained by Principal Components", pch = 19)
+
+# Add a horizontal line at 80% cumulative explained variance
+abline(h = 0.8, col = "red", lty = 2)
+
+# Add a legend
+legend("bottomright", legend = c("Cumulative Explained Variance", "80% Threshold"),
+       col = c("black", "red"), lty = c(1, 2), pch = c(19, NA))
+
+num_components <- which(cumulative_explained_variance >= 0.80)[1]
+
 
 # Now let's apply this transformation to the test data.
 # First, we need to standardize the test data using the mean and sd of the training data.
@@ -490,7 +471,7 @@ testing_features <- scale(testing_features, center = training_center, scale = tr
 
 # Now transform the test data using the PCA model
 transformed_test_features <- predict(pca_model, newdata = testing_features)
-# Add back the target variable
+# Retain only the necessary principal components in the transformed training and test data
 transformed_training_features <- pca_model$x[, 1:num_components]
 transformed_test_features <- transformed_test_features[, 1:num_components]
 
@@ -549,21 +530,20 @@ for(i in 1:nrow(hyper_grid)) {
 
 # Select the best parameters
 best_params <- results[which.min(results$RMSE), ]
-best_params
 
 # Train the model with the best parameters. Extracted and hard-coded.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.2,
+    eta = 0.1,
     max_depth = 1,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 70
+  nrounds = 250
 )
 
 # Prepare the test data
@@ -574,14 +554,15 @@ dtest <- xgb.DMatrix(data = testDataMatrix)
 preds <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-pca_v_rmse <- sqrt(mean((testData$Rating - preds)^2))
+pca_v_rmse <- sqrt(mean((transformed_testing_data$Rating - preds)^2))
 pca_v_rmse
+
 # Calculate MAE on test data
-pca_v_mae <- mean(abs(testData$Rating - preds))
+pca_v_mae <- mean(abs(transformed_testing_data$Rating - preds))
 print(paste0("Validation MAE: ", pca_v_mae))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = testData$Rating,
+df <- data.frame(Actual = transformed_testing_data$Rating,
                  Predicted = preds)
 
 # Calculate the correlation
@@ -594,8 +575,9 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
   geom_point() +
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation:", round(correlation, 2)))+
+  ggtitle(paste("Correlation:", round(correlation_pca, 2)))+
   xlim(0,5)
+
 
 ###### Model Comparison and Selection#####
 
