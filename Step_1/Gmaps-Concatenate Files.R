@@ -23,5 +23,9 @@ all_data <- lapply(file_list, function(file) {
 unique_data <- all_data %>%
   distinct()
 
-# Write the cleaned data frame to a new CSV file
+# Set the working directory where the files are located
+setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Business Analytics/smartproject/Step_1")
+
+unique_data <- data.frame(lapply(unique_data, function(x) iconv(x, "latin1", "ASCII", sub = "")))
+
 write_csv(unique_data, "All_Chargers.csv")
