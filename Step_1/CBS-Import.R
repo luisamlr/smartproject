@@ -1,3 +1,8 @@
+#############################################
+#### Smart Project: CBS Data Preparation ####
+#############################################
+
+
 # ------------------------------------------------------------------------------
 # This file performs data preparation for the CBS dataset to obtain values at 
 # the postcode level. It imports the raw dataset from CBS, aggregates the data 
