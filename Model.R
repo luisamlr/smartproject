@@ -61,15 +61,26 @@ splitIndex <- createDataPartition(df_model$Rating, p = .9,
                                   times = 1)
 
 trainData <- df_model[ splitIndex,]
-testData  <- df_model[-splitIndex,] # Validation dataset
+validationData  <- df_model[-splitIndex,] # Validation dataset
 
 
 ###### GBM - Model and estimation#####
 # Define the parameter grid
 parameter_grid <- expand.grid(n.trees = c(25, 50, 75, 100, 125, 150),
+                              # Specifies the number of trees (base learners) 
+                              # in the gradient boosting model. 
                               interaction.depth = c(2, 3, 4),
-                              shrinkage = c(0.1, 0.2, 0.3),
-                              n.minobsinnode = c(5,10))
+                              # Controls the depth of each tree in the ensemble.
+                              # A higher value capture more complex interactions 
+                              # between features. 
+                              shrinkage = c(0.1, 0.2, 0.3), 
+                              #Shrinkage, determines the contribution of each 
+                              # tree to the final prediction. A smaller value 
+                              # makes the model more conservative, requiring 
+                              # more trees for convergence but potentially 
+                              # improving generalization.
+                              n.minobsinnode = c(5,10)) 
+                              # Minimum observations final node
 
 # Define the control parameters for cross-validation
 ctrl <- trainControl(method = "cv", number = 5)
@@ -90,15 +101,15 @@ gbm_model <- gbm(Rating ~ ., data = trainData,
                  shrinkage = 0.1)
 
 # Generate predictions for the Validation set (this has not been trained or tested yet)
-gbm_pred <- predict(gbm_model, newdata = testData, n.trees = 25)
-gmb_v_rmse <- sqrt(mean((testData$Rating - gbm_pred)^2))
+gbm_pred <- predict(gbm_model, newdata = validationData, n.trees = 25)
+gmb_v_rmse <- sqrt(mean((validationData$Rating - gbm_pred)^2))
 print(paste0("Validation RMSE: ", gmb_v_rmse))
 # Calculate MAE on test data
-gmb_v_mae <- mean(abs(testData$Rating - gbm_pred))
+gmb_v_mae <- mean(abs(validationData$Rating - gbm_pred))
 print(paste0("Validation MAE: ", gmb_v_mae))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = testData$Rating,
+df <- data.frame(Actual = validationData$Rating,
                  Predicted = gbm_pred)
 
 # Calculate the correlation
@@ -180,15 +191,15 @@ ranger_model <- ranger(Rating ~ ., data = trainData,
                        mtry = 2)
 
 # Generate predictions for the testing set
-ranger_pred <- predict(ranger_model, data = testData)$predictions
-ranger_v_rmse <- sqrt(mean((testData$Rating - ranger_pred)^2))
+ranger_pred <- predict(ranger_model, data = validationData)$predictions
+ranger_v_rmse <- sqrt(mean((validationData$Rating - ranger_pred)^2))
 print(paste0("Validation RMSE: ", ranger_v_rmse))
 # Calculate MAE on test data
-ranger_v_mae <- mean(abs(testData$Rating - ranger_pred))
+ranger_v_mae <- mean(abs(validationData$Rating - ranger_pred))
 print(paste0("Validation MAE: ", ranger_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = testData$Rating,
+df <- data.frame(Actual = validationData$Rating,
                  Predicted = ranger_pred)
 
 # Calculate the correlation
@@ -274,21 +285,21 @@ xgb_best_model <- xgboost(
 )
 
 # Prepare the test data
-testDataMatrix <- as.matrix(testData[,-which(names(testData) %in% "Rating")])
-dtest <- xgb.DMatrix(data = testDataMatrix)
+validationDataMatrix <- as.matrix(validationData[,-which(names(validationData) %in% "Rating")])
+dtest <- xgb.DMatrix(data = validationDataMatrix)
 
 # Make predictions on test data
 xgb_pred <- predict(xgb_best_model, dtest)
 
 # Calculate RMSE on test data
-xgb_v_rmse <- sqrt(mean((testData$Rating - xgb_pred)^2))
+xgb_v_rmse <- sqrt(mean((validationData$Rating - xgb_pred)^2))
 print(paste0("Validation RMSE: ", xgb_v_rmse))
 # Calculate MAE on test data
-xgb_v_mae <- mean(abs(testData$Rating - xgb_pred))
+xgb_v_mae <- mean(abs(validationData$Rating - xgb_pred))
 print(paste0("Validation MAE: ", xgb_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = testData$Rating,
+df <- data.frame(Actual = validationData$Rating,
                  Predicted = xgb_pred )
 
 # Calculate the correlation
@@ -384,19 +395,19 @@ gbm_model <- gbm(Rating ~ ., data = trainData,
                  n.trees = 150,
                  interaction.depth = 3,
                  shrinkage = 0.1)
-ranger_pred <- predict(ranger_model, data = testData)$predictions
-gbm_pred <- predict.gbm(gbm_model, newdata = testData, n.trees = parameter_grid$n.trees[i])
+ranger_pred <- predict(ranger_model, data = validationData)$predictions
+gbm_pred <- predict.gbm(gbm_model, newdata = validationData, n.trees = parameter_grid$n.trees[i])
 
 # Calculate RMSE on test data
 prediction_together <- (ranger_pred + gbm_pred) / 2
-ens_v_rmse <- sqrt(mean((testData$Rating - prediction_together)^2))
+ens_v_rmse <- sqrt(mean((validationData$Rating - prediction_together)^2))
 print(paste0("Test RSME: ", ens_v_rmse))
 # Calculate MAE on test data
-ens_v_mae <- mean(abs(testData$Rating - prediction_together))
+ens_v_mae <- mean(abs(validationData$Rating - prediction_together))
 print(paste0("Test MAE: ", ens_v_mae ))
 
 # Create a data frame with the actual and predicted ratings
-df <- data.frame(Actual = testData$Rating,
+df <- data.frame(Actual = validationData$Rating,
                  Predicted = prediction_together)
 
 # Calculate the correlation
@@ -418,7 +429,7 @@ target_var <- "Rating"
 
 # To keep the original dataset
 training_data <- trainData
-testing_data <- testData
+testing_data <- validationData
 
 # Separate features and target variable
 training_features <- training_data[, !(names(training_data) %in% target_var)]
@@ -547,8 +558,8 @@ xgb_best_model <- xgboost(
 )
 
 # Prepare the test data
-testDataMatrix <- as.matrix(transformed_testing_data[,-which(names(transformed_testing_data) %in% "Rating")])
-dtest <- xgb.DMatrix(data = testDataMatrix)
+validationDataMatrix <- as.matrix(transformed_testing_data[,-which(names(transformed_testing_data) %in% "Rating")])
+dtest <- xgb.DMatrix(data = validationDataMatrix)
 
 # Make predictions on test data
 preds <- predict(xgb_best_model, dtest)
@@ -667,6 +678,17 @@ upper_bound_95 <- prediction_new + critical_value * standard_error_xgb
 critical_value <- 1.036 
 lower_bound_75 <- prediction_new - critical_value * standard_error_xgb
 upper_bound_75 <- prediction_new + critical_value * standard_error_xgb
+
+# Set the boundaries
+lower_bound <- 0
+upper_bound <- 5
+
+# Apply the boundaries to the predictions
+prediction_new <- pmax(pmin(prediction_new, upper_bound), lower_bound)
+lower_bound_95 <- pmax(pmin(lower_bound_95, upper_bound), lower_bound)
+upper_bound_95 <- pmax(pmin(upper_bound_95, upper_bound), lower_bound)
+lower_bound_75 <- pmax(pmin(lower_bound_75, upper_bound), lower_bound)
+upper_bound_75 <- pmax(pmin(upper_bound_75, upper_bound), lower_bound)
 
 final_xgb<-cbind(potential_CS, Prediction =prediction_new, lower_bound_95, upper_bound_95,  lower_bound_75, upper_bound_75)
 # Plotting the histogram of new predictions
