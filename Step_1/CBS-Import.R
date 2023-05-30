@@ -20,7 +20,7 @@ library(ggthemes)
 
 ##### Socioeconomic data ####
 # Import observations (raw data)
-obs_data<- read_delim("/Users/rogerpuertolas/Desktop/CBS DATA/Observations.csv", 
+obs_data<- read_delim("Step_1/Observations.csv", 
                       delim = ";", escape_double = FALSE, trim_ws = TRUE)
 # Obtain postal code
 data_pc <- filter(obs_data, grepl("^PC", Measure))
@@ -40,7 +40,7 @@ obs_data <- obs_data %>%
   select(2:4)
 
 # Import variable names and select columns of interest
-v_names <- read_delim("/Users/rogerpuertolas/Desktop/CBS DATA/MeasureCodes.csv", 
+v_names <- read_delim("Step_1/MeasureCodes.csv", 
                       delim = ";", escape_double = FALSE, trim_ws = TRUE)
 v_names<- v_names[,c(1,4)]
 # Join data frames by Measure and select relevant columns

@@ -12,8 +12,6 @@ last_edit <- "2023-05-28"
 #S1. Running the code takes approximately 17 minutes
 ################################################################
 
-
-
 #### Step 1: loading relevant libraries and importing data ####
 ## Install and load the required packages
 library(caTools)
@@ -55,16 +53,16 @@ poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improv
 poi_locations$type <- make.names(poi_locations$type) # Fix type names to avoid problem on R.
 
 # Reshaped Poi Location from the model creation file
-reshaped_poi_locations <- read_excel("reshaped_poi_locations_v2.xlsx")
+reshaped_poi_locations <- read_excel("reshaped_poi_locations.xlsx")
 
 # Step 1: Remove rows where 'type' from 'poi_locations' is not in 'Old.Names' of 'renaming'
 poi_locations <- poi_locations[poi_locations$type %in% renaming$Old_names,]
 names_to_include <- renaming$Old_names[renaming$Include_Variable == 1] # Get the names that should be included
 poi_locations <- poi_locations[poi_locations$type %in% names_to_include, ] # Filter the poi_locations to only include those names
 poi_locations$type <- ifelse(poi_locations$type %in% renaming$Old_names,
-                             ifelse(!is.na(renaming$New_names[match(poi_locations$type, renaming$Old_names)]) & nchar(renaming$New_names[match(poi_locations$type, renaming$Old_names)]) > 0,
-                                    renaming$New_names[match(poi_locations$type, renaming$Old_names)],
-                                    renaming$New_names[match(poi_locations$type, renaming$Old_names)]),
+                             ifelse(!is.na(renaming$FAC_Aggregation[match(poi_locations$type, renaming$Old_names)]) & nchar(renaming$FAC_Aggregation[match(poi_locations$type, renaming$Old_names)]) > 0,
+                                    renaming$FAC_Aggregation[match(poi_locations$type, renaming$Old_names)],
+                                    renaming$FAC_Aggregation[match(poi_locations$type, renaming$Old_names)]),
                              poi_locations$type) # Renaming POI types, fixing mislabeled names, and grouping similar named types.
 
 # Reshaping the table

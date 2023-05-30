@@ -37,7 +37,7 @@ setwd("C:/Users/radok/OneDrive/Desktop/Maastricht Univeristy/Service Project/Bus
 # All chargers locations, from Google Maps:
 df_cs <- read.csv("Step_1/All_Chargers.csv")
 # Facilities around chargers, from OpenStreetMap:
-poi_locations <- read_excel("Step_1/facilities_around_coordinates.xlsx")
+poi_locations <- read.csv("Step_1/facilities_around_coordinates.csv")
 # Demographic information for every Dutch postal code, From CBS:
 demog_data <- read_excel("Step_1/CBS.xlsx")
 # Distance to the closes highway, from Google maps:
