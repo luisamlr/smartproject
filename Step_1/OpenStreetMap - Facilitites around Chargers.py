@@ -9,12 +9,18 @@ the charging stations with reviews."""
 # Import necessary libraries
 import pandas as pd
 import overpy
+import chardet
 
 # Define the path of the CSV file
 file_path = 'All_Chargers.csv'
 
-# Read the CSV file into a Pandas DataFrame
-df = pd.read_csv(file_path)
+# Detect the encoding of the file
+rawdata = open(file_path, 'rb').read()
+result = chardet.detect(rawdata)
+encoding = result['encoding']
+
+# Read the file with the detected encoding
+df = pd.read_csv(file_path, encoding=encoding)
 
 # Filter rows where 'Ratings Total' is greater than 0
 df = df[df['Ratings.Total'] > 0]
