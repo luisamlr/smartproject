@@ -57,7 +57,6 @@ df_cs <- df_cs[df_cs$Country=="Netherlands" ,]
 df_cs$Admin.Area.Level.1 <- gsub("North", "Noord", df_cs$Admin.Area.Level.1)
 df_cs$Admin.Area.Level.1 <- gsub("South", "Zuid", df_cs$Admin.Area.Level.1)
 df_cs$Admin.Area.Level.1 <- gsub(" ", "-", df_cs$Admin.Area.Level.1)
-# unique(df_cs$Admin.Area.Level.1) # 12 provinces in Netherlands
 
 ## OPEN STREET MAP ##
 poi_locations$type <- paste0("Fac_",poi_locations$type) # Add a prefix to improve handling.
@@ -83,8 +82,8 @@ names_to_exclude <- renaming$Old_names[renaming$Include_Variable == 0] # Get the
 demog_data <- demog_data[ , !(names(demog_data) %in% names_to_exclude)] # Drop the columns from demog_data
 
 #### Step 3: calculating average ratings ####
-### Finding the averages of the 3, 5 or 10 nearest charging stations
 
+### Finding the averages of the 3, 5 or 10 nearest charging stations
 # Function to calculate distance between two coordinates using geosphere package
 calc_distance <- function(lat1, lon1, lat2, lon2) {
   dist <- distHaversine(c(lon1, lat1), c(lon2, lat2))
@@ -258,12 +257,18 @@ reshaped_poi_locations <- reshaped_poi_locations %>%
 reshaped_poi_locations <- reshaped_poi_locations %>%
   left_join(highway_dist, by = c("charger_longitude" = "charger_longitude", "charger_latitude" = "charger_latitude"))
 
-## Fixing variable names, to avoid problem with columns names starting with numbers. Cleaning rows with NAs.
+## CLEANING AND FORMATTING DATA ##
+
+# Ensure the column names in reshaped_poi_locations follow R's standard naming conventions to avoid potential issues.
 names(reshaped_poi_locations) <- make.names(names(reshaped_poi_locations))
 
+# Identify column names in renaming$New_names marked for exclusion (where Include_Variable equals 0).
+names_to_exclude <- renaming$New_names[renaming$Include_Variable == 0]
 
-names_to_exclude <- renaming$New_names[renaming$Include_Variable == 0] # Get the column names that should be excluded
-reshaped_poi_locations <- reshaped_poi_locations[ , !(names(reshaped_poi_locations) %in% names_to_exclude)] # Drop the columns from demog_data
+# Remove the identified columns from reshaped_poi_locations. 
+reshaped_poi_locations <- reshaped_poi_locations[ , !(names(reshaped_poi_locations) %in% names_to_exclude)] 
+
+# Remove rows with NA values in reshaped_poi_locations to ensure the data is clean and suitable for analysis.
 reshaped_poi_locations <- na.omit(reshaped_poi_locations)
 
 #### Step 4: Saving the data
