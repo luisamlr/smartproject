@@ -63,6 +63,12 @@ splitIndex <- createDataPartition(df_model$Rating, p = .9,
 trainData <- df_model[ splitIndex,]
 validationData  <- df_model[-splitIndex,] # Validation dataset
 
+# This part of the code is dedicated to tuning different models and finding the best.
+# By default, you will skip this section and go straight to the final model.
+# You can set the skip_code in the next line to FALSE to run all models and comparisons.
+skip_code <- FALSE  # set to FALSE if you want to run the code block
+
+if (!skip_code) {
 
 ###### GBM - Model and estimation#####
 # Define the parameter grid
@@ -96,9 +102,9 @@ cat("RMSE:", min(gbm_model[["results"]][["RMSE"]]))
 
 # Fit the model with current parameter combination
 gbm_model <- gbm(Rating ~ ., data = trainData,
-                 n.trees = 25,
-                 interaction.depth = 3,
-                 shrinkage = 0.1)
+                 n.trees = gbm_model$bestTune[1],
+                 interaction.depth = gbm_model$bestTune[2],
+                 shrinkage = gbm_model$bestTune[3])
 
 # Generate predictions for the Validation set (this has not been trained or tested yet)
 gbm_pred <- predict(gbm_model, newdata = validationData, n.trees = 25)
@@ -186,9 +192,9 @@ cat("RMSE:", best_rmse)
 
 # Fit the model with current parameter combination
 ranger_model <- ranger(Rating ~ ., data = trainData,
-                       num.trees = 150,
-                       max.depth = 3,
-                       mtry = 2)
+                       num.trees = best_params$num.trees,
+                       max.depth = best_params$max.depth,
+                       mtry = best_params$mtry)
 
 # Generate predictions for the testing set
 ranger_pred <- predict(ranger_model, data = validationData)$predictions
@@ -267,21 +273,21 @@ for(i in 1:nrow(hyper_grid)) {
 }
 
 # Select the best parameters
-best_params <- results[which.min(results$RMSE), ]
-print(best_params)
-# Train the model with the best parameters. Best parameters are extracted and hard-coded.
+xgb_best_params <- results[which.min(results$RMSE), ]
+print(xgb_best_params)
+# Train the model with the best parameters. Best parameters are extracted.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
-    objective = "reg:squarederror",
-    eta = 0.1,
-    max_depth = 4,
-    gamma = 0,
-    colsample_bytree = 1,
-    min_child_weight = 1,
-    subsample = 1
+    objective = "reg:squarederror", # The loss function to minimize. In this case, it's the squared error used for regression problems.
+    eta = xgb_best_params$eta, # The learning rate, determining how quickly the model learns. It helps to prevent overfitting.
+    max_depth = xgb_best_params$max_depth, #The maximum depth of any given tree within the model, controlling the complexity of the model.
+    gamma = 0, # The minimum loss reduction required to make a split, acting as a regularization parameter.
+    colsample_bytree = 1, # The fraction of columns (features) to be randomly sampled for each tree.
+    min_child_weight = 1, # The minimum sum of instance (hessian) weight needed in a child (leaf).
+    subsample = 1 # The fraction of observations (rows) to be randomly sampled for each tree.
   ),
-  nrounds = 250
+  nrounds = xgb_best_params$nrounds # The number of boosting rounds or trees to build. This is effectively the subsequent models built after calculating residuals.
 )
 
 # Prepare the test data
@@ -313,7 +319,7 @@ ggplot(df, aes(x = Predicted, y = Actual)) +
   geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
   xlab("Predicted Ratings") +
   ylab("Actual Ratings") +
-  ggtitle(paste("Correlation (GBM):", round(correlation_xgb, 2))) +
+  ggtitle(paste("Correlation (XGB):", round(correlation_xgb, 2))) +
   xlim(1, 5)
 
 ###### Model Ensembling#####
@@ -389,12 +395,12 @@ print(best_params)
 cat("RMSE:", best_rmse)
 
 # Model estimation
-ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = 100,
-                       max.depth = 3, mtry = 2)
+ranger_model <- ranger(Rating ~ ., data = trainData, num.trees = best_params$num.trees,
+                       max.depth = best_params$max.depth, mtry = best_params$mtry)
 gbm_model <- gbm(Rating ~ ., data = trainData,
-                 n.trees = 150,
-                 interaction.depth = 3,
-                 shrinkage = 0.1)
+                 n.trees = best_params$n.trees,
+                 interaction.depth = best_params$interaction.depth,
+                 shrinkage = best_params$shrinkage)
 ranger_pred <- predict(ranger_model, data = validationData)$predictions
 gbm_pred <- predict.gbm(gbm_model, newdata = validationData, n.trees = parameter_grid$n.trees[i])
 
@@ -547,14 +553,14 @@ xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.1,
-    max_depth = 1,
+    eta = best_params$eta,
+    max_depth = best_params$max_depth,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 250
+  nrounds = best_params$nrounds
 )
 
 # Prepare the test data
@@ -594,10 +600,11 @@ ggplot(df, aes(x =Predicted , y = Actual)) +
 
 model_comparison<-cbind(GBM = mc_gmb, RF = mc_ranger, XGB = mc_xgb, "ENS(RF/GBM)" = mc_ens, PCA = mc_pca)
 model_comparison
+}
 
 # Select XGB as the most accurate and efficient model
 
-# Train the model with the best parameters. Best parameters are extracted and hard-coded.
+# Train the model with the best parameters. Best parameters are extracted.
 # Convert the predictors and targets into matrices
 trainDataMatrix <- as.matrix(trainData[,-which(names(trainData) %in% "Rating")])
 trainLabels <- as.vector(trainData$Rating)
@@ -650,20 +657,53 @@ for(i in 1:nrow(hyper_grid)) {
 # Select the best parameters
 best_params <- results[which.min(results$RMSE), ]
 print(best_params)
-# Train the model with the best parameters. Best parameters are extracted and hard-coded.
+# Train the model with the best parameters. Best parameters are extracted.
 xgb_best_model <- xgboost(
   data = dtrain,
   params = list(
     objective = "reg:squarederror",
-    eta = 0.1,
-    max_depth = 5,
+    eta = best_params$eta,
+    max_depth = best_params$max_depth,
     gamma = 0,
     colsample_bytree = 1,
     min_child_weight = 1,
     subsample = 1
   ),
-  nrounds = 500
+  nrounds = best_params$nrounds
 )
+
+# Prepare the test data
+validationDataMatrix <- as.matrix(validationData[,-which(names(validationData) %in% "Rating")])
+dtest <- xgb.DMatrix(data = validationDataMatrix)
+
+# Make predictions on test data
+xgb_pred <- predict(xgb_best_model, dtest)
+
+# Calculate RMSE on test data
+xgb_v_rmse <- sqrt(mean((validationData$Rating - xgb_pred)^2))
+print(paste0("Validation RMSE: ", xgb_v_rmse))
+# Calculate MAE on test data
+xgb_v_mae <- mean(abs(validationData$Rating - xgb_pred))
+print(paste0("Validation MAE: ", xgb_v_mae ))
+
+# Create a data frame with the actual and predicted ratings
+df <- data.frame(Actual = validationData$Rating,
+                 Predicted = xgb_pred )
+
+# Calculate the correlation
+correlation_xgb <- cor(df$Actual, df$Predicted)
+mc_xgb<-c(xgb_v_rmse, xgb_v_mae, correlation_xgb)
+standard_error_xgb <- sd(df$Actual-df$Predicted)
+
+# Create the scatter plot
+ggplot(df, aes(x = Predicted, y = Actual)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +  # Add the diagonal line
+  xlab("Predicted Ratings") +
+  ylab("Actual Ratings") +
+  ggtitle(paste("Correlation (XGB):", round(correlation_xgb, 2))) +
+  xlim(1, 5)
+
 
 trainDataMatrix <- as.matrix(potential_CS[,-which(names(potential_CS) %in% "Rating")])
 dtrain <- xgb.DMatrix(data = trainDataMatrix)
