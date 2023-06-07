@@ -1,0 +1,80 @@
+##################################################################
+#### Smart Project: Business Analytics Code Instructions v1.0 ####
+##################################################################
+
+Our project involves predicting potential ratings for electric car charging stations by utilizing a range of data sources such as geographic, demographic, and user information. We transform this data to extract the necessary information and then create a model capable of making estimations for potential charging stations to be presented on a dashboard. We have divided this process into three steps, which are described as follows:
+
+##################### Step 1: Data Extraction #####################
+In the "Step_1" folder, various code files are used to extract and/or transform data from different sources. The files are described in the order they need to be executed:
+
+##### 1a - Google Maps - EV chargers by grid (Python): #####
+This code extracts information from the Google Places API to fetch nearby charging stations for electric vehicles using a 9-point grid for a specific location. A personal API key is required for this process.
+
+Input: N/A 
+Output: charging_stations_gmaps_XX.csv (several files).
+
+##### 1b - Google Maps - EV chargers by coordinates (Python) #####
+This code extracts information from the Google Places API to fetch nearby charging stations for electric vehicles for a specific list of coordinates.
+
+Input: N/A 
+Output: charging_stations_gmaps_XX.csv (several files).
+
+##### 2 - Gmaps-Concatenate Files (R) #####
+This script concatenates all the gmaps files from the above steps and saves them into a single csv file.
+
+Input: charging_stations_gmaps_XX.csv (several files).
+Output: All_Chargers.csv
+
+##### 3 - OpenStreetMap - Facilities around Chargers (Python) #####
+For every electric car charger with user reviews from Google Maps, this code retrieves all the facilities within a radius of 1000m using the OpenStreet Map API.
+
+Input: All_Chargers.csv 
+Output: facilities_around_coordinates.csv
+
+##### 4 - OpenStreetMap - Potentials (Python) #####
+This script extracts potential locations for new charging stations, using available parking spots in Maastricht as initial references. From the OpenStreet Map API, it fetches coordinates, postal code, city, country, and facilities around each charger.
+
+Input: N/A
+Output: parking_spots_maastricht.csv, facilities_around_coordinates_parking.csv
+
+##### 5 - Nearest_Highway (R) #####
+This script uses the coordinates from the current electric car chargers and potential locations extracted earlier, and calculates if there is a highway within a specified distance (1000m).
+
+Input: All_Chargers.csv, parking_spots_maastricht.csv
+Output: highway_dist.csv
+
+##### 6 - CBS - Import (R) #####
+This script uses data manually extracted from the CBS Netherlands website (https://www.cbs.nl/), and transforms it to make the relevant data more manageable in subsequent steps.
+
+Input: Observations.csv, MeasureCodes.csv
+Output: CBS.xlsx
+
+##################### Step 2: Data Preparation #####################
+In this step, two code files are used to consolidate the information from all the sources described in the previous step, performing necessary transformations and calculations for further steps.
+
+##### 1 - Data Preparation - Merge and Transform (R) #####
+This code merges and transforms data from different sources in preparation for further analysis.
+
+Input: All_Chargers.csv, facilities_around_coordinates.csv, CBS.xlsx, highway_dist.csv, variable_maintenance.xlsx
+Output: reshaped_poi_locations.xlsx, variables_to_check.xlsx
+
+##### 2 - Data Preparation - Potential Spots (R) #####
+This code identifies potential spots for new charging stations using input from various sources and previously reshaped data.
+
+Input: All_Chargers.csv, variable_maintenance.xlsx, highway_dist.csv, facilities_around_coordinates_parking.xlsx, reshaped_poi_locations.xlsx, parking_spots_maastricht.csv
+Output: reshaped_poi_locations_potential.xlsx
+
+##################### Step 3: Model Creation #####################
+This step involves evaluating and comparing machine learning models to predict charging station ratings. Using cross-validation and various performance metrics, the most appropriate model is selected. This model is then applied to generate and export predictions for potential charging stations, inclusive of their confidence intervals.
+
+##### 1 - Model Creation - Performance and Prediction (R) #####
+This file executes the aforementioned tasks.
+
+Input: reshaped_poi_locations.xlsx, reshaped_poi_locations_potential.xlsx
+Output: potential_CS_final.xlsx, variable_importance.xlsx
+
+##################### Dashboard #####################
+This additional folder provides a demonstration of how the information will be presented to the client using a Tableau Dashboard.
+
+Input: potential_CS_final.xlsx, variable_importance.xlsx
+Output: EV Potential Chargers.twb (Tableau File)

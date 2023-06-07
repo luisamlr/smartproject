@@ -1,0 +1,27 @@
+##################################################################
+#### Smart Project: Business Analytics Code Maintenance v1.0 ####
+##################################################################
+
+We recommend running the source code once a month. 
+
+When a municipality-designated person might seek to update the dashboard's data inputs,
+there are several things one will have to consider.
+
+The sources' output could change and disrupt the model creation. When for example a new variable is introduced into OpenStreetMap, the API will automatically extract said variable. For this, we have taken some precautions that would automatically exclude these variables. If you wish to include these variables instead, they will need to be checked manually and can then be introduced into the model. It is very simple.
+
+Step-by-step instructions to do so:
+For adaptations, follow the following instructions in both of the two files of Step 2 - "Data Preparation - Merge and Transformation" and "Data Preparation - Potential Spots". 
+We first want to check the number of variables that have not been sorted into categories and are not accounted for in the creation of the models:
+1. Comment in the loops (lines 118-132, lines 148-153, lines 168-200)
+2. Run the entire code once (this takes approx 28 minutes)
+3. The code is now up-to-date. Check variable "num_columns_between" (at the end of the code it is printed automatically).
+4. If num_columns_between is above 0, then open the file "reshaped_poi_locations" from the environment.
+5. Extract the names of the columns that show up behind "charger_latitude" and before "Rating"
+6. Open the file "variable_maintenance". Add the extracted variables into the file, use the "New_names" column for any translations or other adaptations to the name, and add the preferred categorization in the "FAC_Aggregation" column. Decide with the last column, whether you would like the variable to be included in the final model (=1) or not (=0).
+7. Run code again & repeat Steps 3-5 to check if anything was missed.
+8. Comment the loops (lines 118-132, lines 148-153, lines 168-200) back out.
+9. Change the date of the last edit at the top "last_edit".
+
+No other updates need to be made to the code.
+
+Attention: You will require Python (or a Jupyter Notebook), RStudio (R) and Tableau to execute this code. 
