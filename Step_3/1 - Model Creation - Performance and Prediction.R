@@ -699,6 +699,21 @@ df <- data.frame(Actual = validationData$Rating,
 correlation_xgb <- cor(df$Actual, df$Predicted)
 mc_xgb<-c(xgb_v_rmse, xgb_v_mae, correlation_xgb)
 standard_error_xgb <- sd(df$Actual-df$Predicted)
+margin_of_error <- 1.96 * standard_error_xgb
+df$UpperBound <- df$Predicted + margin_of_error
+df$LowerBound <- df$Predicted - margin_of_error
+df$WithinBounds <- df$Actual >= df$LowerBound & df$Actual <= df$UpperBound
+coverage_ratio_xgb_95 <- sum(df$WithinBounds) / nrow(df)
+margin_of_error <- 1.645 * standard_error_xgb
+df$UpperBound <- df$Predicted + margin_of_error
+df$LowerBound <- df$Predicted - margin_of_error
+df$WithinBounds <- df$Actual >= df$LowerBound & df$Actual <= df$UpperBound
+coverage_ratio_xgb_90 <- sum(df$WithinBounds) / nrow(df)
+margin_of_error <- 0.674 * standard_error_xgb
+df$UpperBound <- df$Predicted + margin_of_error
+df$LowerBound <- df$Predicted - margin_of_error
+df$WithinBounds <- df$Actual >= df$LowerBound & df$Actual <= df$UpperBound
+coverage_ratio_xgb_75 <- sum(df$WithinBounds) / nrow(df)
 
 # Create the scatter plot
 ggplot(df, aes(x = Predicted, y = Actual)) +
